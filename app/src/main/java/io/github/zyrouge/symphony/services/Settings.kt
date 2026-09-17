@@ -21,6 +21,7 @@ import io.github.zyrouge.symphony.ui.view.home.ForYou
 import io.github.zyrouge.symphony.utils.ImagePreserver
 import io.github.zyrouge.symphony.utils.StringListUtils
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlin.enums.EnumEntries
@@ -28,16 +29,21 @@ import kotlin.enums.enumEntries
 
 class Settings(private val symphony: Symphony) {
     abstract class Entry<T>(val key: String) {
-        private val mutableFlow by lazy {
-            MutableStateFlow(getValueInternal())
+        private var _flow: MutableStateFlow<T>? = null
+        private fun getOrCreateFlow(): MutableStateFlow<T> {
+            val existing = _flow
+            if (existing != null) return existing
+            val created = MutableStateFlow(getValueInternal())
+            _flow = created
+            return created
         }
 
-        val flow get() = mutableFlow.asStateFlow()
+        val flow: kotlinx.coroutines.flow.StateFlow<T> get() = getOrCreateFlow().asStateFlow()
         val value get() = getValueInternal()
 
         fun setValue(value: T) {
             setValueInternal(value)
-            mutableFlow.update { getValueInternal() }
+            getOrCreateFlow().update { getValueInternal() }
         }
 
         protected abstract fun getValueInternal(): T
@@ -270,6 +276,7 @@ class Settings(private val symphony: Symphony) {
             HomePage.Songs,
             HomePage.Albums,
             HomePage.Artists,
+            HomePage.Genres,
             HomePage.Playlists,
         ),
     )
@@ -289,7 +296,7 @@ class Settings(private val symphony: Symphony) {
     val nowPlayingAdditionalInfo = BooleanEntry("show_now_playing_additional_info", true)
     val nowPlayingSeekControls = BooleanEntry("enable_seek_controls", false)
     val seekBackDuration = IntEntry("seek_back_duration", 15)
-    val seekForwardDuration = IntEntry("seek_back_duration", 30)
+    val seekForwardDuration = IntEntry("seek_forward_duration", 30)
     val miniPlayerTrackControls = BooleanEntry("mini_player_extended_controls", false)
     val miniPlayerSeekControls = BooleanEntry("mini_player_seek_controls", false)
     val fontFamily = NullableStringEntry("font_family")
@@ -329,6 +336,7 @@ class Settings(private val symphony: Symphony) {
     val gaplessPlayback = BooleanEntry("gapless_playback", true)
     val caseSensitiveSorting = BooleanEntry("case_sensitive_sorting", false)
     val lyricsKeepScreenAwake = BooleanEntry("lyrics_keep_screen_awake", true)
+    val apiBaseUrl = NullableStringEntry("api_base_url")
 
     private fun getSharedPreferences() = symphony.applicationContext
         .getSharedPreferences("settings", Context.MODE_PRIVATE)

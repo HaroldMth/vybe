@@ -213,8 +213,20 @@ class PlaylistRepository(private val symphony: Symphony) {
         update(favorites.id, songIds.mutate { remove(songId) })
     }
 
+    fun putRemote(playlist: Playlist) {
+        cache[playlist.id] = playlist
+        _all.update {
+            if (it.contains(playlist.id)) it else it + playlist.id
+        }
+        emitUpdateId()
+        emitCount()
+    }
+
+    fun isRemotePlaylist(playlist: Playlist) = isRemoteId(playlist.id)
+
     fun isFavoritesPlaylist(playlist: Playlist) = playlist.id == FAVORITE_PLAYLIST
-    fun isBuiltInPlaylist(playlist: Playlist) = isFavoritesPlaylist(playlist)
+    fun isBuiltInPlaylist(playlist: Playlist) =
+        isFavoritesPlaylist(playlist) || isRemotePlaylist(playlist)
 
     fun savePlaylistToUri(playlist: Playlist, uri: Uri) {
         val outputStream = symphony.applicationContext.contentResolver.openOutputStream(uri, "w")
@@ -242,5 +254,10 @@ class PlaylistRepository(private val symphony: Symphony) {
 
     companion object {
         private const val FAVORITE_PLAYLIST = "favorites"
+        const val REMOTE_PREFIX = "vybe_playlist_"
+
+        fun remoteId(apiId: String) = if (apiId.startsWith(REMOTE_PREFIX)) apiId else "$REMOTE_PREFIX$apiId"
+        fun isRemoteId(id: String) = id.startsWith(REMOTE_PREFIX)
+        fun remoteApiId(id: String) = id.removePrefix(REMOTE_PREFIX)
     }
 }

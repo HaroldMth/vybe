@@ -1,14 +1,23 @@
 package io.github.zyrouge.symphony.services.radio
 
 import io.github.zyrouge.symphony.Symphony
+import io.github.zyrouge.symphony.services.api.VybeLyricsData
 import io.github.zyrouge.symphony.utils.EventUnsubscribeFn
+import io.github.zyrouge.symphony.utils.Logger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 class RadioObservatory(private val symphony: Symphony) {
     private var updateSubscriber: EventUnsubscribeFn? = null
     private var playbackPositionUpdateSubscriber: EventUnsubscribeFn? = null
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var lyricsFetchJob: Job? = null
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying = _isPlaying.asStateFlow()
@@ -35,12 +44,18 @@ class RadioObservatory(private val symphony: Symphony) {
     private val _persistedPitch = MutableStateFlow(RadioPlayer.DEFAULT_PITCH)
     val persistedPitch = _persistedPitch.asStateFlow()
 
+    /** Current song's lyrics — null until fetched, updated on every song change. */
+    val lyrics = MutableStateFlow<VybeLyricsData?>(null)
+
     fun start() {
         updateSubscriber = symphony.radio.onUpdate.subscribe { event ->
             when (event) {
                 Radio.Events.Player.Seeked -> emitPlaybackPosition()
                 is Radio.Events.Player -> emitIsPlaying()
-                is Radio.Events.Queue.IndexChanged -> emitQueueIndex()
+                is Radio.Events.Queue.IndexChanged -> {
+                    emitQueueIndex()
+                    fetchLyricsForCurrentSong()
+                }
                 is Radio.Events.Queue -> emitQueue()
                 Radio.Events.QueueOption.LoopModeChanged -> emitLoopMode()
                 Radio.Events.QueueOption.ShuffleModeChanged -> emitShuffleMode()
@@ -58,6 +73,31 @@ class RadioObservatory(private val symphony: Symphony) {
     fun destroy() {
         updateSubscriber?.invoke()
         playbackPositionUpdateSubscriber?.invoke()
+        lyricsFetchJob?.cancel()
+    }
+
+    private fun fetchLyricsForCurrentSong() {
+        lyricsFetchJob?.cancel()
+        lyrics.value = null
+        val idx = symphony.radio.queue.currentSongIndex
+        val songId = symphony.radio.queue.currentQueue.getOrNull(idx) ?: return
+        val song = symphony.groove.song.get(songId) ?: return
+        val title = song.title
+        val artist = song.artists.firstOrNull() ?: return
+        val durationSec = (song.duration / 1000).takeIf { it > 0 }
+
+        lyricsFetchJob = scope.launch {
+            try {
+                val result = symphony.vybeApi.getLyrics(
+                    title = title,
+                    artist = artist,
+                    duration = durationSec,
+                )
+                lyrics.value = result
+            } catch (e: Exception) {
+                Logger.error("RadioObservatory", "lyrics fetch failed", e)
+            }
+        }
     }
 
     private fun emitIsPlaying() = _isPlaying.update {
@@ -93,7 +133,6 @@ class RadioObservatory(private val symphony: Symphony) {
         _pitch.update { symphony.radio.currentPitch }
         _persistedPitch.update { symphony.radio.persistedPitch }
     }
-
 
     private fun emitPauseOnCurrentSongEnd() = _pauseOnCurrentSongEnd.update {
         symphony.radio.pauseOnCurrentSongEnd

@@ -105,7 +105,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
         isSearching = true
         currentTermsRoutine?.cancel()
         currentTermsRoutine = coroutineScope.launch {
-            withContext(Dispatchers.Default) {
+            withContext(Dispatchers.IO) {
                 delay(250)
                 val songIds = mutableListOf<String>()
                 val artistNames = mutableListOf<String>()
@@ -115,47 +115,21 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                 val playlistIds = mutableListOf<String>()
 
                 if (nTerms.isNotEmpty()) {
-                    if (isChipSelected(Groove.Kind.SONG)) {
-                        songIds.addAll(
-                            context.symphony.groove.song
-                                .search(context.symphony.groove.song.ids(), terms)
-                                .map { it.entity }
-                        )
-                    }
-                    if (isChipSelected(Groove.Kind.ARTIST)) {
-                        artistNames.addAll(
-                            context.symphony.groove.artist
-                                .search(context.symphony.groove.artist.ids(), terms)
-                                .map { it.entity }
-                        )
-                    }
-                    if (isChipSelected(Groove.Kind.ALBUM)) {
-                        albumIds.addAll(
-                            context.symphony.groove.album
-                                .search(context.symphony.groove.album.ids(), terms)
-                                .map { it.entity }
-                        )
-                    }
-                    if (isChipSelected(Groove.Kind.ALBUM_ARTIST)) {
-                        albumArtistNames.addAll(
-                            context.symphony.groove.albumArtist
-                                .search(context.symphony.groove.albumArtist.ids(), terms)
-                                .map { it.entity }
-                        )
-                    }
-                    if (isChipSelected(Groove.Kind.GENRE)) {
-                        genreNames.addAll(
-                            context.symphony.groove.genre
-                                .search(context.symphony.groove.genre.ids(), terms)
-                                .map { it.entity }
-                        )
-                    }
-                    if (isChipSelected(Groove.Kind.PLAYLIST)) {
-                        playlistIds.addAll(
-                            context.symphony.groove.playlist
-                                .search(context.symphony.groove.playlist.ids(), terms)
-                                .map { it.entity }
-                        )
+                    val remoteData = context.symphony.vybeApi.search(nTerms)
+                    if (remoteData != null) {
+                        val ingested = context.symphony.groove.catalog.ingestSearch(remoteData)
+                        if (isChipSelected(Groove.Kind.SONG)) {
+                            songIds.addAll(ingested.songIds)
+                        }
+                        if (isChipSelected(Groove.Kind.ARTIST)) {
+                            artistNames.addAll(ingested.artistNames)
+                        }
+                        if (isChipSelected(Groove.Kind.ALBUM)) {
+                            albumIds.addAll(ingested.albumIds)
+                        }
+                        if (isChipSelected(Groove.Kind.PLAYLIST)) {
+                            playlistIds.addAll(ingested.playlistIds)
+                        }
                     }
 
                     results = SearchResult(

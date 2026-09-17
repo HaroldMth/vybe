@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -17,6 +18,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -24,8 +26,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import io.github.zyrouge.symphony.services.groove.repositories.PlaylistRepository
 import io.github.zyrouge.symphony.ui.components.AnimatedNowPlayingBottomBar
 import io.github.zyrouge.symphony.ui.components.IconTextBody
 import io.github.zyrouge.symphony.ui.components.PlaylistDropdownMenu
@@ -46,14 +50,22 @@ fun PlaylistView(context: ViewContext, route: PlaylistViewRoute) {
     val allPlaylistIds by context.symphony.groove.playlist.all.collectAsState()
     val updateId by context.symphony.groove.playlist.updateId.collectAsState()
     var updateCounter by remember { mutableIntStateOf(0) }
+    var loading by remember { mutableStateOf(PlaylistRepository.isRemoteId(route.playlistId)) }
+    LaunchedEffect(route.playlistId) {
+        if (PlaylistRepository.isRemoteId(route.playlistId)) {
+            loading = true
+            context.symphony.groove.catalog.ensurePlaylist(route.playlistId)
+            loading = false
+        }
+    }
     val playlist by remember(route.playlistId, updateId) {
         derivedStateOf { context.symphony.groove.playlist.get(route.playlistId) }
     }
     val songIds by remember(playlist) {
         derivedStateOf { playlist?.getSongIds(context.symphony) ?: emptyList() }
     }
-    val isViable by remember(allPlaylistIds, route.playlistId) {
-        derivedStateOf { allPlaylistIds.contains(route.playlistId) }
+    val isViable by remember(allPlaylistIds, route.playlistId, updateId) {
+        derivedStateOf { context.symphony.groove.playlist.get(route.playlistId) != null }
     }
     var showOptionsMenu by remember { mutableStateOf(false) }
     val isFavoritesPlaylist by remember(playlist) {
@@ -125,13 +137,21 @@ fun PlaylistView(context: ViewContext, route: PlaylistViewRoute) {
                     .fillMaxSize()
             ) {
                 when {
+                    loading && !isViable -> Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
                     isViable -> SongList(
                         context,
                         songIds = songIds,
                         type = SongListType.Playlist,
                         disableHeartIcon = isFavoritesPlaylist,
                         trailingOptionsContent = { _, song, onDismissRequest ->
-                            playlist?.takeIf { it.isNotLocal }?.let {
+                            playlist?.takeIf {
+                                it.isNotLocal && !context.symphony.groove.playlist.isRemotePlaylist(it)
+                            }?.let {
                                 DropdownMenuItem(
                                     leadingIcon = {
                                         Icon(

@@ -49,28 +49,30 @@ class AlbumRepository(private val symphony: Symphony) {
 
     internal fun onSong(song: Song) {
         val albumId = getIdFromSong(song) ?: return
-        songIdsCache.compute(albumId) { _, value ->
-            value?.apply { add(song.id) } ?: concurrentSetOf(song.id)
-        }
+        val ids = songIdsCache.compute(albumId) { _, value ->
+            value ?: concurrentSetOf()
+        }!!
+        val isNewSong = ids.add(song.id)
         cache.compute(albumId) { _, value ->
             value?.apply {
-                artists.addAll(song.artists)
-                song.year?.let {
-                    startYear = startYear?.let { old -> min(old, it) } ?: it
-                    endYear = endYear?.let { old -> max(old, it) } ?: it
+                if (isNewSong) {
+                    artists.addAll(song.artists)
+                    song.year?.let {
+                        startYear = startYear?.let { old -> min(old, it) } ?: it
+                        endYear = endYear?.let { old -> max(old, it) } ?: it
+                    }
+                    numberOfTracks++
+                    duration += song.duration.milliseconds
                 }
-                numberOfTracks++
-                duration += song.duration.milliseconds
             } ?: run {
                 _all.update {
-                    it + albumId
+                    if (it.contains(albumId)) it else it + albumId
                 }
                 emitCount()
                 Album(
                     id = albumId,
                     name = song.album!!,
                     artists = mutableSetOf<String>().apply {
-                        // ensure that album artists are first
                         addAll(song.albumArtists)
                         addAll(song.artists)
                     },
@@ -80,6 +82,16 @@ class AlbumRepository(private val symphony: Symphony) {
                     duration = song.duration.milliseconds,
                 )
             }
+        }
+    }
+
+    fun putStub(album: Album) {
+        val existing = cache.putIfAbsent(album.id, album)
+        if (existing == null) {
+            _all.update {
+                if (it.contains(album.id)) it else it + album.id
+            }
+            emitCount()
         }
     }
 
@@ -93,6 +105,7 @@ class AlbumRepository(private val symphony: Symphony) {
     }
 
     fun getIdFromSong(song: Song): String? {
+        symphony.groove.catalog.albumIdForSong(song.id)?.let { return it }
         if (song.album == null) {
             return null
         }
@@ -102,6 +115,7 @@ class AlbumRepository(private val symphony: Symphony) {
 
     fun getArtworkUri(albumId: String) = songIdsCache[albumId]?.firstOrNull()
         ?.let { symphony.groove.song.getArtworkUri(it) }
+        ?: symphony.groove.catalog.albumCoverUri(albumId)
         ?: symphony.groove.song.getDefaultArtworkUri()
 
     fun createArtworkImageRequest(albumId: String) = createHandyImageRequest(

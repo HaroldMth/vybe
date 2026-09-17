@@ -7,22 +7,34 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import coil.compose.AsyncImage
@@ -70,35 +82,91 @@ fun NowPlayingBodyCover(
 @Composable
 private fun NowPlayingBodyCoverLyrics(context: ViewContext, orientation: ScreenOrientation) {
     val keepScreenAwake by context.symphony.settings.lyricsKeepScreenAwake.flow.collectAsState()
+    val lyricsData by context.symphony.radio.observatory.lyrics.collectAsState()
 
     if (keepScreenAwake) {
         KeepScreenAwake()
     }
-    
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(
-                0.dp,
-                if (orientation == ScreenOrientation.LANDSCAPE) 0.dp else 8.dp
-            )
-            .background(
-                MaterialTheme.colorScheme.surfaceContainer,
-                RoundedCornerShape(12.dp),
-            ),
+            .padding(0.dp, if (orientation == ScreenOrientation.LANDSCAPE) 0.dp else 8.dp)
+            .background(Color(0xFF1A1A1A).copy(alpha = 0.92f), RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp)),
         contentAlignment = Alignment.Center,
     ) {
-        LyricsText(
-            context,
-            padding = PaddingValues(
-                horizontal = 12.dp,
-                vertical = 8.dp,
-            ),
-            style = TimedContentTextStyle.defaultStyle(
-                textStyle = LocalTextStyle.current,
-                contentColor = LocalContentColor.current,
-            ),
-        )
+        // Lyrics card header
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Header row
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp, 12.dp, 12.dp, 0.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "LYRICS",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = androidx.compose.ui.unit.TextUnit(1.5f, androidx.compose.ui.unit.TextUnitType.Sp),
+                    ),
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                // Source pill
+                val source = lyricsData?.source
+                if (source != null) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                    ) {
+                        Text(
+                            "● ${lyricsData?.type?.replaceFirstChar { it.uppercase() } ?: "Synced"} · $source",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = MaterialTheme.colorScheme.primary,
+                            ),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                IconButton(
+                    onClick = { /* TODO: lyrics settings */ },
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.Settings,
+                        null,
+                        modifier = Modifier.size(18.dp),
+                        tint = Color.White.copy(alpha = 0.6f),
+                    )
+                }
+            }
+
+            // Lyrics content
+            LyricsText(
+                context,
+                padding = PaddingValues(
+                    horizontal = 12.dp,
+                    vertical = 52.dp, // top padding to clear header
+                ),
+                style = TimedContentTextStyle(
+                    highlighted = MaterialTheme.typography.titleMedium.copy(
+                        color = Color.White,
+                    ),
+                    active = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    ),
+                    inactive = MaterialTheme.typography.titleMedium.copy(
+                        color = Color.White.copy(alpha = 0.4f),
+                    ),
+                    spacing = 10.dp,
+                ),
+            )
+        }
     }
 }
 
@@ -125,7 +193,7 @@ private fun NowPlayingBodyCoverArtwork(context: ViewContext, song: Song) {
                 filterQuality = FilterQuality.High,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(20.dp)) // Larger radius than before (was 12.dp)
                     .swipeable(
                         minimumDragAmount = 100f,
                         onSwipeLeft = {
@@ -150,6 +218,5 @@ private fun NowPlayingBodyCoverArtwork(context: ViewContext, song: Song) {
                     }
             )
         }
-
     }
 }

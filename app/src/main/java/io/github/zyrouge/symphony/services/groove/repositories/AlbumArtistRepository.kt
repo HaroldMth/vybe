@@ -73,6 +73,8 @@ class AlbumArtistRepository(private val symphony: Symphony) {
 
     fun reset() {
         cache.clear()
+        songIdsCache.clear()
+        albumIdsCache.clear()
         _all.update {
             emptyList()
         }

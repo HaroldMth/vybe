@@ -45,15 +45,15 @@ object PlayerSettingsViewRoute
 @Composable
 fun PlayerSettingsView(context: ViewContext) {
     val scrollState = rememberScrollState()
-    val fadePlayback by context.symphony.settings.fadePlayback.flow.collectAsState()
-    val fadePlaybackDuration by context.symphony.settings.fadePlaybackDuration.flow.collectAsState()
-    val requireAudioFocus by context.symphony.settings.requireAudioFocus.flow.collectAsState()
-    val ignoreAudioFocusLoss by context.symphony.settings.ignoreAudioFocusLoss.flow.collectAsState()
-    val playOnHeadphonesConnect by context.symphony.settings.playOnHeadphonesConnect.flow.collectAsState()
-    val pauseOnHeadphonesDisconnect by context.symphony.settings.pauseOnHeadphonesDisconnect.flow.collectAsState()
-    val seekBackDuration by context.symphony.settings.seekBackDuration.flow.collectAsState()
-    val seekForwardDuration by context.symphony.settings.seekForwardDuration.flow.collectAsState()
-    val gaplessPlayback by context.symphony.settings.gaplessPlayback.flow.collectAsState()
+    val fadePlayback by context.symphony.settings.fadePlayback.flow.collectAsState(context.symphony.settings.fadePlayback.value)
+    val fadePlaybackDuration by context.symphony.settings.fadePlaybackDuration.flow.collectAsState(context.symphony.settings.fadePlaybackDuration.value)
+    val requireAudioFocus by context.symphony.settings.requireAudioFocus.flow.collectAsState(context.symphony.settings.requireAudioFocus.value)
+    val ignoreAudioFocusLoss by context.symphony.settings.ignoreAudioFocusLoss.flow.collectAsState(context.symphony.settings.ignoreAudioFocusLoss.value)
+    val playOnHeadphonesConnect by context.symphony.settings.playOnHeadphonesConnect.flow.collectAsState(context.symphony.settings.playOnHeadphonesConnect.value)
+    val pauseOnHeadphonesDisconnect by context.symphony.settings.pauseOnHeadphonesDisconnect.flow.collectAsState(context.symphony.settings.pauseOnHeadphonesDisconnect.value)
+    val seekBackDuration by context.symphony.settings.seekBackDuration.flow.collectAsState(context.symphony.settings.seekBackDuration.value)
+    val seekForwardDuration by context.symphony.settings.seekForwardDuration.flow.collectAsState(context.symphony.settings.seekForwardDuration.value)
+    val gaplessPlayback by context.symphony.settings.gaplessPlayback.flow.collectAsState(context.symphony.settings.gaplessPlayback.value)
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

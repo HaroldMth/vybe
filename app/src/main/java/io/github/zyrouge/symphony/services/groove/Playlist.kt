@@ -6,6 +6,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import io.github.zyrouge.symphony.Symphony
 import io.github.zyrouge.symphony.ui.helpers.Assets
+import io.github.zyrouge.symphony.ui.helpers.createHandyImageRequest
 import io.github.zyrouge.symphony.utils.DocumentFileX
 import io.github.zyrouge.symphony.utils.SimplePath
 import kotlin.io.path.Path
@@ -26,7 +27,13 @@ data class Playlist(
     val isNotLocal get() = uri == null
 
     fun createArtworkImageRequest(symphony: Symphony) =
-        getSongIds(symphony).firstOrNull()
+        symphony.groove.catalog.playlistCoverUri(id)?.let { cover ->
+            createHandyImageRequest(
+                symphony.applicationContext,
+                image = cover,
+                fallback = Assets.getPlaceholderId(symphony),
+            )
+        } ?: getSongIds(symphony).firstOrNull()
             ?.let { symphony.groove.song.get(it)?.createArtworkImageRequest(symphony) }
             ?: Assets.createPlaceholderImageRequest(symphony)
 

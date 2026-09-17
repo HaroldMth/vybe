@@ -3,14 +3,13 @@ package io.github.zyrouge.symphony.ui.view.nowPlaying
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,22 +17,24 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -48,30 +49,44 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.zyrouge.symphony.services.radio.RadioQueue
 import io.github.zyrouge.symphony.ui.components.SongDropdownMenu
 import io.github.zyrouge.symphony.ui.helpers.FadeTransition
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.ArtistViewRoute
-import io.github.zyrouge.symphony.ui.view.NowPlayingControlsLayout
 import io.github.zyrouge.symphony.ui.view.NowPlayingData
+import io.github.zyrouge.symphony.ui.view.NowPlayingDefaults
+import io.github.zyrouge.symphony.ui.view.NowPlayingLyricsLayout
+import io.github.zyrouge.symphony.ui.view.NowPlayingStates
 import io.github.zyrouge.symphony.utils.DurationUtils
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * Bottom section of the Now Playing screen:
+ *   Song title + LYRICS pill
+ *   Artist name
+ *   Seek bar
+ *   Controls row: [⇌] [⏮] [▶] [⏭] [↺]
+ *   Extra options moved to BottomBar's … menu
+ */
 @Composable
-fun NowPlayingBodyContent(context: ViewContext, data: NowPlayingData) {
-    val favoriteSongIds by context.symphony.groove.playlist.favorites.collectAsState()
-    val isFavorite by remember(data) {
-        derivedStateOf { favoriteSongIds.contains(data.song.id) }
-    }
+fun NowPlayingBodyContent(context: ViewContext, data: NowPlayingData, states: NowPlayingStates) {
+    val showLyrics by states.showLyrics.collectAsState()
 
     data.run {
-        Column {
-            Row {
+        Column(modifier = Modifier.padding(bottom = 8.dp)) {
+            // ── Song title + LYRICS pill ──────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = defaultHorizontalPadding),
+                verticalAlignment = Alignment.Top,
+            ) {
                 AnimatedContent(
-                    label = "now-playing-body-content",
+                    label = "now-playing-body-title",
                     modifier = Modifier.weight(1f),
                     targetState = song,
                     transitionSpec = {
@@ -79,246 +94,221 @@ fun NowPlayingBodyContent(context: ViewContext, data: NowPlayingData) {
                             .togetherWith(FadeTransition.exitTransition())
                     },
                 ) { targetStateSong ->
-                    Column(modifier = Modifier.padding(defaultHorizontalPadding, 0.dp)) {
+                    Column {
                         Text(
                             targetStateSong.title,
-                            style = MaterialTheme.typography.headlineSmall
-                                .copy(fontWeight = FontWeight.Bold),
-                            maxLines = 3,
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                            ),
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
                         if (targetStateSong.artists.isNotEmpty()) {
-                            FlowRow {
-                                targetStateSong.artists.forEachIndexed { i, it ->
+                            Row {
+                                targetStateSong.artists.forEachIndexed { i, artist ->
                                     Text(
-                                        it,
-                                        maxLines = 2,
+                                        artist,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            color = Color.White.copy(alpha = 0.7f),
+                                        ),
+                                        maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.pointerInput(Unit) {
                                             detectTapGestures { _ ->
-                                                context.navController.navigate(ArtistViewRoute(it))
+                                                context.navController.navigate(ArtistViewRoute(artist))
                                             }
                                         },
                                     )
                                     if (i != targetStateSong.artists.size - 1) {
-                                        Text(", ")
+                                        Text(
+                                            ", ",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                color = Color.White.copy(alpha = 0.7f),
+                                            ),
+                                        )
                                     }
                                 }
                             }
                         }
-                        if (data.showSongAdditionalInfo) {
-                            targetStateSong.toSamplingInfoString(context.symphony)?.let {
-                                val localContentColor = LocalContentColor.current
-                                Text(
-                                    it,
-                                    style = MaterialTheme.typography.labelSmall
-                                        .copy(color = localContentColor.copy(alpha = 0.7f)),
-                                    modifier = Modifier.padding(top = 4.dp),
-                                )
-                            }
-                        }
                     }
                 }
-                Row {
-                    IconButton(
-                        modifier = Modifier.offset(4.dp),
-                        onClick = {
-                            context.symphony.groove.playlist.run {
-                                when {
-                                    isFavorite -> unfavorite(song.id)
-                                    else -> favorite(song.id)
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // LYRICS pill button
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .border(
+                            1.dp,
+                            if (showLyrics) MaterialTheme.colorScheme.primary
+                            else Color.White.copy(alpha = 0.4f),
+                            RoundedCornerShape(50),
+                        )
+                        .then(
+                            Modifier.pointerInput(Unit) {
+                                detectTapGestures {
+                                    when (lyricsLayout) {
+                                        NowPlayingLyricsLayout.ReplaceArtwork -> {
+                                            val nShow = !states.showLyrics.value
+                                            states.showLyrics.value = nShow
+                                            NowPlayingDefaults.showLyrics = nShow
+                                        }
+                                        NowPlayingLyricsLayout.SeparatePage -> {
+                                            context.navController.navigate(
+                                                io.github.zyrouge.symphony.ui.view.LyricsViewRoute
+                                            )
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    ) {
-                        when {
-                            isFavorite -> Icon(
-                                Icons.Filled.Favorite,
-                                null,
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-
-                            else -> Icon(Icons.Filled.FavoriteBorder, null)
-                        }
-                    }
-
-                    var showOptionsMenu by remember { mutableStateOf(false) }
-                    IconButton(
-                        onClick = {
-                            showOptionsMenu = !showOptionsMenu
-                        }
-                    ) {
-                        Icon(Icons.Filled.MoreVert, null)
-                        SongDropdownMenu(
-                            context,
-                            song,
-                            isFavorite = isFavorite,
-                            expanded = showOptionsMenu,
-                            onDismissRequest = {
-                                showOptionsMenu = false
-                            }
-                        )
-                    }
+                        ),
+                    color = if (showLyrics)
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    else Color.Transparent,
+                ) {
+                    Text(
+                        "LYRICS",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = if (showLyrics) MaterialTheme.colorScheme.primary
+                            else Color.White.copy(alpha = 0.7f),
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = androidx.compose.ui.unit.TextUnit(
+                                1f,
+                                androidx.compose.ui.unit.TextUnitType.Sp
+                            ),
+                        ),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
                 }
             }
-            Spacer(modifier = Modifier.height(defaultHorizontalPadding + 8.dp))
-            when (controlsLayout) {
-                NowPlayingControlsLayout.CompactLeft -> NowPlayingCompactControls(
-                    context,
-                    data = data
-                )
 
-                NowPlayingControlsLayout.CompactRight -> NowPlayingCompactControls(
-                    context,
-                    data = data,
-                    modifier = Modifier.align(Alignment.End)
-                )
+            Spacer(modifier = Modifier.height(16.dp))
 
-                NowPlayingControlsLayout.Traditional -> NowPlayingTraditionalControls(
-                    context,
-                    data = data,
+            // ── Seek bar ──────────────────────────────────────────────────────
+            NowPlayingSeekBar(context)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ── Controls: [⇌] [⏮] [▶] [⏭] [↺] ─────────────────────────────
+            NowPlayingVybeControls(context, data)
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // ── Bottom bar (extra options: queue count, ···) ──────────────────
+            NowPlayingBodyBottomBar(context, data, states)
+        }
+    }
+}
+
+/**
+ * Vybe-style control row matching the reference screenshot:
+ * Shuffle | SkipPrev | PlayPause(large) | SkipNext | Repeat
+ */
+@Composable
+fun NowPlayingVybeControls(context: ViewContext, data: NowPlayingData) {
+    data.run {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = defaultHorizontalPadding),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Shuffle
+            IconButton(onClick = { context.symphony.radio.queue.toggleShuffleMode() }) {
+                Icon(
+                    Icons.Filled.Shuffle,
+                    null,
+                    modifier = Modifier.size(22.dp),
+                    tint = if (currentShuffleMode) MaterialTheme.colorScheme.primary
+                    else Color.White.copy(alpha = 0.7f),
                 )
             }
-            Spacer(modifier = Modifier.height(defaultHorizontalPadding + 8.dp))
-            NowPlayingSeekBar(context)
-            Spacer(modifier = Modifier.height(defaultHorizontalPadding))
+
+            // Skip previous
+            IconButton(onClick = { context.symphony.radio.shorty.previous() }) {
+                Icon(
+                    Icons.Filled.SkipPrevious,
+                    null,
+                    modifier = Modifier.size(32.dp),
+                    tint = Color.White,
+                )
+            }
+
+            // Play / pause — large white circle
+            IconButton(
+                onClick = { context.symphony.radio.shorty.playPause() },
+                modifier = Modifier
+                    .size(64.dp)
+                    .background(Color.White, CircleShape),
+            ) {
+                Icon(
+                    if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    null,
+                    modifier = Modifier.size(36.dp),
+                    tint = Color.Black,
+                )
+            }
+
+            // Skip next
+            IconButton(onClick = { context.symphony.radio.shorty.skip() }) {
+                Icon(
+                    Icons.Filled.SkipNext,
+                    null,
+                    modifier = Modifier.size(32.dp),
+                    tint = Color.White,
+                )
+            }
+
+            // Repeat
+            IconButton(onClick = { context.symphony.radio.queue.toggleLoopMode() }) {
+                Icon(
+                    when (currentLoopMode) {
+                        RadioQueue.LoopMode.Song -> Icons.Filled.RepeatOne
+                        else -> Icons.Filled.Repeat
+                    },
+                    null,
+                    modifier = Modifier.size(22.dp),
+                    tint = when (currentLoopMode) {
+                        RadioQueue.LoopMode.None -> Color.White.copy(alpha = 0.7f)
+                        else -> MaterialTheme.colorScheme.primary
+                    },
+                )
+            }
         }
     }
 }
 
-@Composable
-fun NowPlayingCompactControls(
-    context: ViewContext,
-    data: NowPlayingData,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.padding(defaultHorizontalPadding, 0.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        NowPlayingPlayPauseButton(
-            context,
-            data = data,
-            style = NowPlayingControlButtonStyle(
-                color = NowPlayingControlButtonColor.Primary,
-            ),
-        )
-        NowPlayingSkipPreviousButton(
-            context,
-            data = data,
-            style = NowPlayingControlButtonStyle(
-                color = NowPlayingControlButtonColor.Surface,
-            ),
-        )
-        if (data.enableSeekControls) {
-            NowPlayingFastRewindButton(
-                context,
-                data = data,
-                style = NowPlayingControlButtonStyle(
-                    color = NowPlayingControlButtonColor.Surface,
-                ),
-            )
-            NowPlayingFastForwardButton(
-                context,
-                data = data,
-                style = NowPlayingControlButtonStyle(
-                    color = NowPlayingControlButtonColor.Surface,
-                ),
-            )
-        }
-        NowPlayingSkipNextButton(
-            context,
-            data = data,
-            style = NowPlayingControlButtonStyle(
-                color = NowPlayingControlButtonColor.Surface,
-            ),
-        )
-    }
-}
-
-@Composable
-fun NowPlayingTraditionalControls(context: ViewContext, data: NowPlayingData) {
-    Row(
-        modifier = Modifier
-            .padding(defaultHorizontalPadding, 0.dp)
-            .fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceAround,
-    ) {
-        NowPlayingSkipPreviousButton(
-            context,
-            data = data,
-            style = NowPlayingControlButtonStyle(
-                color = NowPlayingControlButtonColor.Transparent,
-            ),
-        )
-        if (data.enableSeekControls) {
-            NowPlayingFastRewindButton(
-                context,
-                data = data,
-                style = NowPlayingControlButtonStyle(
-                    color = NowPlayingControlButtonColor.Transparent,
-                ),
-            )
-        }
-        NowPlayingPlayPauseButton(
-            context,
-            data = data,
-            style = NowPlayingControlButtonStyle(
-                color = NowPlayingControlButtonColor.Surface,
-                size = NowPlayingControlButtonSize.Large,
-            ),
-        )
-        if (data.enableSeekControls) {
-            NowPlayingFastForwardButton(
-                context,
-                data = data,
-                style = NowPlayingControlButtonStyle(
-                    color = NowPlayingControlButtonColor.Transparent,
-                ),
-            )
-        }
-        NowPlayingSkipNextButton(
-            context,
-            data = data,
-            style = NowPlayingControlButtonStyle(
-                color = NowPlayingControlButtonColor.Transparent,
-            ),
-        )
-    }
-}
+// ── SeekBar ───────────────────────────────────────────────────────────────────
 
 @Composable
 fun NowPlayingSeekBar(context: ViewContext) {
     val playbackPosition by context.symphony.radio.observatory.playbackPosition.collectAsState()
 
     Row(
-        modifier = Modifier.padding(defaultHorizontalPadding, 0.dp),
+        modifier = Modifier.padding(horizontal = defaultHorizontalPadding),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         var seekRatio by remember { mutableStateOf<Float?>(null) }
 
         NowPlayingPlaybackPositionText(
-            seekRatio?.let { it * playbackPosition.total }?.toLong()
-                ?: playbackPosition.played,
+            seekRatio?.let { it * playbackPosition.total }?.toLong() ?: playbackPosition.played,
             Alignment.CenterStart,
         )
         Box(modifier = Modifier.weight(1f)) {
-            NowPlayingSeekBar(
+            NowPlayingSeekBarSlider(
                 ratio = playbackPosition.ratio,
-                onSeekStart = {
-                    seekRatio = 0f
-                },
-                onSeek = {
-                    seekRatio = it
-                },
+                onSeekStart = { seekRatio = 0f },
+                onSeek = { seekRatio = it },
                 onSeekEnd = {
                     context.symphony.radio.seek((it * playbackPosition.total).toLong())
                     seekRatio = null
                 },
-                onSeekCancel = {
-                    seekRatio = null
-                },
+                onSeekCancel = { seekRatio = null },
             )
         }
         NowPlayingPlaybackPositionText(
@@ -329,7 +319,7 @@ fun NowPlayingSeekBar(context: ViewContext) {
 }
 
 @Composable
-private fun NowPlayingSeekBar(
+private fun NowPlayingSeekBarSlider(
     ratio: Float,
     onSeekStart: () -> Unit,
     onSeek: (Float) -> Unit,
@@ -337,32 +327,27 @@ private fun NowPlayingSeekBar(
     onSeekCancel: () -> Unit,
 ) {
     val sliderHeight = 12.dp
-    val thumbSize = 12.dp
-    val thumbSizeHalf = thumbSize.div(2)
+    val thumbSize = 14.dp
+    val thumbSizeHalf = thumbSize / 2
     val trackHeight = 4.dp
 
     var dragging by remember { mutableStateOf(false) }
     var dragRatio by remember { mutableFloatStateOf(0f) }
 
     BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(sliderHeight),
+        modifier = Modifier.fillMaxWidth().height(sliderHeight),
         contentAlignment = Alignment.Center,
     ) {
-        val sliderWidth = this@BoxWithConstraints.maxWidth
+        val sliderWidth = maxWidth
 
         Box(
             modifier = Modifier
                 .height(sliderHeight)
                 .fillMaxWidth()
                 .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = { offset ->
-                            val tapRatio = (offset.x / sliderWidth.toPx()).coerceIn(0f..1f)
-                            onSeekEnd(tapRatio)
-                        }
-                    )
+                    detectTapGestures { offset ->
+                        onSeekEnd((offset.x / sliderWidth.toPx()).coerceIn(0f..1f))
+                    }
                 }
                 .pointerInput(Unit) {
                     var offsetX = 0f
@@ -393,26 +378,23 @@ private fun NowPlayingSeekBar(
                     )
                 }
         )
+        // Track background
         Box(
             modifier = Modifier
                 .padding(thumbSizeHalf, 0.dp)
                 .height(trackHeight)
                 .fillMaxWidth()
-                .background(
-                    MaterialTheme.colorScheme.surfaceVariant,
-                    RoundedCornerShape(thumbSizeHalf)
-                )
+                .background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(thumbSizeHalf))
         ) {
+            // Track fill
             Box(
                 modifier = Modifier
                     .height(trackHeight)
                     .fillMaxWidth(if (dragging) dragRatio else ratio)
-                    .background(
-                        MaterialTheme.colorScheme.primary,
-                        RoundedCornerShape(thumbSizeHalf)
-                    )
+                    .background(Color.White, RoundedCornerShape(thumbSizeHalf))
             )
         }
+        // Thumb
         Box(modifier = Modifier.fillMaxWidth()) {
             Box(
                 modifier = Modifier
@@ -423,133 +405,59 @@ private fun NowPlayingSeekBar(
                             .times(if (dragging) dragRatio else ratio),
                         0.dp
                     )
-                    .background(MaterialTheme.colorScheme.primary, CircleShape)
+                    .background(Color.White, CircleShape)
             )
         }
     }
 }
 
 @Composable
-private fun NowPlayingPlaybackPositionText(
-    duration: Long,
-    alignment: Alignment,
-) {
-    val textStyle = MaterialTheme.typography.labelMedium
+private fun NowPlayingPlaybackPositionText(duration: Long, alignment: Alignment) {
     val durationFormatted = DurationUtils.formatMs(duration)
-
     Box(contentAlignment = alignment) {
         Text(
             "0".repeat(durationFormatted.length),
-            style = textStyle.copy(color = Color.Transparent),
+            style = MaterialTheme.typography.labelMedium.copy(color = Color.Transparent),
         )
         Text(
             durationFormatted,
-            style = MaterialTheme.typography.labelMedium
+            style = MaterialTheme.typography.labelMedium.copy(color = Color.White.copy(alpha = 0.7f)),
         )
     }
 }
 
+// Legacy compact controls (kept for landscape / settings variants)
 @Composable
-private fun NowPlayingPlayPauseButton(
-    context: ViewContext,
-    data: NowPlayingData,
-    style: NowPlayingControlButtonStyle,
-) {
-    data.run {
+fun NowPlayingCompactControls(context: ViewContext, data: NowPlayingData, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.padding(defaultHorizontalPadding, 0.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         NowPlayingControlButton(
-            style = style,
-            icon = when {
-                !isPlaying -> Icons.Filled.PlayArrow
-                else -> Icons.Filled.Pause
-            },
-            onClick = {
-                context.symphony.radio.shorty.playPause()
-            }
+            NowPlayingControlButtonStyle(NowPlayingControlButtonColor.Primary),
+            icon = if (!data.isPlaying) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+            onClick = { context.symphony.radio.shorty.playPause() }
         )
-    }
-}
-
-@Composable
-private fun NowPlayingSkipPreviousButton(
-    context: ViewContext,
-    data: NowPlayingData,
-    style: NowPlayingControlButtonStyle,
-) {
-    data.run {
         NowPlayingControlButton(
-            style = style,
+            NowPlayingControlButtonStyle(NowPlayingControlButtonColor.Surface),
             icon = Icons.Filled.SkipPrevious,
-            onClick = {
-                context.symphony.radio.shorty.previous()
-            }
+            onClick = { context.symphony.radio.shorty.previous() }
         )
-    }
-}
-
-@Composable
-private fun NowPlayingSkipNextButton(
-    context: ViewContext,
-    data: NowPlayingData,
-    style: NowPlayingControlButtonStyle,
-) {
-    data.run {
         NowPlayingControlButton(
-            style = style,
+            NowPlayingControlButtonStyle(NowPlayingControlButtonColor.Surface),
             icon = Icons.Filled.SkipNext,
-            onClick = {
-                context.symphony.radio.shorty.skip()
-            }
+            onClick = { context.symphony.radio.shorty.skip() }
         )
     }
 }
 
 @Composable
-private fun NowPlayingFastRewindButton(
-    context: ViewContext,
-    data: NowPlayingData,
-    style: NowPlayingControlButtonStyle,
-) {
-    data.run {
-        NowPlayingControlButton(
-            style = style,
-            icon = Icons.Filled.FastRewind,
-            onClick = {
-                context.symphony.radio.shorty
-                    .seekFromCurrent(-seekBackDuration)
-            }
-        )
-    }
+fun NowPlayingTraditionalControls(context: ViewContext, data: NowPlayingData) {
+    NowPlayingVybeControls(context, data)
 }
 
-@Composable
-private fun NowPlayingFastForwardButton(
-    context: ViewContext,
-    data: NowPlayingData,
-    style: NowPlayingControlButtonStyle,
-) {
-    data.run {
-        NowPlayingControlButton(
-            style = style,
-            icon = Icons.Filled.FastForward,
-            onClick = {
-                context.symphony.radio.shorty
-                    .seekFromCurrent(seekForwardDuration)
-            }
-        )
-    }
-}
-
-private enum class NowPlayingControlButtonColor {
-    Primary,
-    Surface,
-    Transparent,
-}
-
-private enum class NowPlayingControlButtonSize {
-    Default,
-    Large,
-}
-
+private enum class NowPlayingControlButtonColor { Primary, Surface, Transparent }
+private enum class NowPlayingControlButtonSize { Default, Large }
 private data class NowPlayingControlButtonStyle(
     val color: NowPlayingControlButtonColor,
     val size: NowPlayingControlButtonSize = NowPlayingControlButtonSize.Default,
@@ -574,16 +482,10 @@ private fun NowPlayingControlButton(
         NowPlayingControlButtonSize.Default -> 24.dp
         NowPlayingControlButtonSize.Large -> 32.dp
     }
-
     IconButton(
         modifier = Modifier.background(backgroundColor, CircleShape),
         onClick = onClick,
     ) {
-        Icon(
-            icon,
-            null,
-            tint = contentColor,
-            modifier = Modifier.size(iconSize),
-        )
+        Icon(icon, null, tint = contentColor, modifier = Modifier.size(iconSize))
     }
 }

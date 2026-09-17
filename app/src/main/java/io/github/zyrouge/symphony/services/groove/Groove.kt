@@ -34,20 +34,25 @@ class Groove(private val symphony: Symphony) : Symphony.Hooks {
     val albumArtist = AlbumArtistRepository(symphony)
     val genre = GenreRepository(symphony)
     val playlist = PlaylistRepository(symphony)
+    val catalog = VybeCatalog(symphony)
 
     private suspend fun fetch() {
-        coroutineScope.launch {
-            awaitAll(
-                async { exposer.fetch() },
-                async { playlist.fetch() },
-            )
-        }.join()
+        exposer.setUpdating(true)
+        try {
+            playlist.fetch()
+            catalog.bootstrap()
+        } catch (err: Exception) {
+            io.github.zyrouge.symphony.utils.Logger.error("Groove", "catalog fetch failed", err)
+        }
+        exposer.setUpdating(false)
+        exposer.notifyScanFinish()
     }
 
     private suspend fun reset() {
         coroutineScope.launch {
             awaitAll(
                 async { exposer.reset() },
+                async { catalog.reset() },
                 async { albumArtist.reset() },
                 async { album.reset() },
                 async { artist.reset() },

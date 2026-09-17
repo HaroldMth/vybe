@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,10 +27,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -58,15 +62,19 @@ data class AlbumViewRoute(val albumId: String)
 fun AlbumView(context: ViewContext, route: AlbumViewRoute) {
     val allAlbumIds by context.symphony.groove.album.all.collectAsState()
     val allSongIds by context.symphony.groove.song.all.collectAsState()
-    val album by remember(allAlbumIds) {
+    var loading by remember { mutableStateOf(true) }
+    LaunchedEffect(route.albumId) {
+        loading = true
+        context.symphony.groove.catalog.ensureAlbum(route.albumId)
+        loading = false
+    }
+    val album by remember(allAlbumIds, allSongIds) {
         derivedStateOf { context.symphony.groove.album.get(route.albumId) }
     }
     val songIds by remember(album, allSongIds) {
         derivedStateOf { album?.getSongIds(context.symphony) ?: listOf() }
     }
-    val isViable by remember(allAlbumIds) {
-        derivedStateOf { allAlbumIds.contains(route.albumId) }
-    }
+    val isViable = album != null
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -100,8 +108,14 @@ fun AlbumView(context: ViewContext, route: AlbumViewRoute) {
                     .padding(contentPadding)
                     .fillMaxSize()
             ) {
-                if (isViable) {
-                    SongList(
+                when {
+                    loading && !isViable -> Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                    isViable -> SongList(
                         context,
                         songIds = songIds,
                         type = SongListType.Album,
@@ -115,7 +129,8 @@ fun AlbumView(context: ViewContext, route: AlbumViewRoute) {
                         },
                         cardThumbnailLabelStyle = SongCardThumbnailLabelStyle.Subtle,
                     )
-                } else UnknownAlbum(context, route.albumId)
+                    else -> UnknownAlbum(context, route.albumId)
+                }
             }
         },
         bottomBar = {

@@ -8,6 +8,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -15,12 +16,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import io.github.zyrouge.symphony.ui.components.AnimatedNowPlayingBottomBar
@@ -39,15 +42,19 @@ data class GenreViewRoute(val genreName: String)
 fun GenreView(context: ViewContext, route: GenreViewRoute) {
     val allGenreNames by context.symphony.groove.genre.all.collectAsState()
     val allSongIds by context.symphony.groove.song.all.collectAsState()
-    val genre by remember(allGenreNames) {
+    var loading by remember { mutableStateOf(true) }
+    LaunchedEffect(route.genreName) {
+        loading = true
+        context.symphony.groove.catalog.ensureGenre(route.genreName)
+        loading = false
+    }
+    val genre by remember(allGenreNames, allSongIds) {
         derivedStateOf { context.symphony.groove.genre.get(route.genreName) }
     }
     val songIds by remember(genre, allSongIds) {
         derivedStateOf { genre?.getSongIds(context.symphony) ?: listOf() }
     }
-    val isViable by remember(allGenreNames) {
-        derivedStateOf { allGenreNames.contains(route.genreName) }
-    }
+    val isViable = genre != null
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -97,6 +104,12 @@ fun GenreView(context: ViewContext, route: GenreViewRoute) {
                     .fillMaxSize()
             ) {
                 when {
+                    loading && !isViable -> Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
                     isViable -> SongList(context, songIds = songIds)
                     else -> UnknownGenre(context, route.genreName)
                 }

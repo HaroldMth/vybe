@@ -50,7 +50,7 @@ ${sortedTranslations
 }
     `;
     const path = p.join(appI18nDir, "Translations.g.kt");
-    await fs.writeFile(path, content);
+    await fs.writeFile(path, content.trimStart());
     log.success(`Generated "${p.relative(rootDir, path)}".`);
 }
 
@@ -127,6 +127,6 @@ ${dynamicKeys.join("\n")}
 }
     `;
     const path = p.join(appI18nDir, "Translation.g.kt");
-    await fs.writeFile(path, content);
+    await fs.writeFile(path, content.trimStart());
     log.success(`Generated "${p.relative(rootDir, path)}".`);
 }

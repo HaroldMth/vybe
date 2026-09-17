@@ -8,6 +8,7 @@ import android.os.Build
 import androidx.compose.runtime.Immutable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.core.net.toUri
 import io.github.zyrouge.symphony.Symphony
 import io.github.zyrouge.symphony.utils.DocumentFileX
 import io.github.zyrouge.symphony.utils.ImagePreserver
@@ -278,6 +279,35 @@ data class Song(
                 }
             }
             return result
+        }
+
+        fun fromVybeTrack(track: io.github.zyrouge.symphony.services.api.VybeTrack, streamUrl: String): Song {
+            val durationMs = if (track.duration > 100000) track.duration else track.duration * 1000L
+            return Song(
+                id = "vybe_${track.id}",
+                title = track.title.ifEmpty { "Unknown Title" },
+                album = track.album?.name,
+                artists = track.artistNamesSet,
+                composers = emptySet(),
+                albumArtists = track.artistNamesSet,
+                genres = emptySet(),
+                trackNumber = null,
+                trackTotal = null,
+                discNumber = null,
+                discTotal = null,
+                date = null,
+                year = null,
+                duration = durationMs,
+                bitrate = null,
+                samplingRate = null,
+                channels = null,
+                encoder = "Vybe Cloud",
+                dateModified = System.currentTimeMillis(),
+                size = 0L,
+                coverFile = track.coverUrl,
+                uri = streamUrl.toUri(),
+                path = streamUrl,
+            )
         }
     }
 }

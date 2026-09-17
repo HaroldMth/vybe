@@ -32,6 +32,7 @@ import io.github.zyrouge.symphony.ui.components.settings.SettingsOptionTile
 import io.github.zyrouge.symphony.ui.components.settings.SettingsSideHeading
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.HomePage
+import io.github.zyrouge.symphony.ui.view.label
 import io.github.zyrouge.symphony.ui.view.HomePageBottomBarLabelVisibility
 import io.github.zyrouge.symphony.ui.view.home.ForYou
 import kotlinx.serialization.Serializable
@@ -95,7 +96,7 @@ fun HomePageSettingsView(context: ViewContext) {
                         },
                         value = homeTabs,
                         values = HomePage.entries.associateWith { it.label(context) },
-                        satisfies = { it.size in 2..5 },
+                        satisfies = { it.size in 2..6 },
                         onChange = { value ->
                             context.symphony.settings.homeTabs.setValue(value)
                         }

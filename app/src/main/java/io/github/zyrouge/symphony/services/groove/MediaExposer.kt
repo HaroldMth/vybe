@@ -208,6 +208,10 @@ class MediaExposer(private val symphony: Symphony) {
         symphony.groove.song.onSong(song)
     }
 
+    internal fun setUpdating(value: Boolean) = emitUpdate(value)
+
+    internal fun notifyScanFinish() = emitFinish()
+
     private fun emitFinish() {
         symphony.groove.playlist.onScanFinish()
     }

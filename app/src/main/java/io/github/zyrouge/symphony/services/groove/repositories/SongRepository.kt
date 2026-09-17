@@ -17,6 +17,7 @@ import io.github.zyrouge.symphony.utils.withCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.serialization.json.doubleOrNull
 import java.util.concurrent.ConcurrentHashMap
 
 class SongRepository(private val symphony: Symphony) {
@@ -64,10 +65,11 @@ class SongRepository(private val symphony: Symphony) {
     internal fun onSong(song: Song) {
         cache[song.id] = song
         pathCache[song.path] = song.id
+        pathCache[song.id] = song.id
         explorer.addChildFile(SimplePath(song.path)).data = song.id
         emitIds()
         _all.update {
-            it + song.id
+            if (it.contains(song.id)) it else it + song.id
         }
         emitCount()
     }
@@ -119,9 +121,13 @@ class SongRepository(private val symphony: Symphony) {
     fun get(id: String) = cache[id]
     fun get(ids: List<String>) = ids.mapNotNull { get(it) }
 
-    fun getArtworkUri(songId: String): Uri = get(songId)?.coverFile
-        ?.let { symphony.database.artworkCache.get(it) }?.toUri()
-        ?: getDefaultArtworkUri()
+    fun getArtworkUri(songId: String): Uri = get(songId)?.coverFile?.let {
+        if (it.startsWith("http://") || it.startsWith("https://")) {
+            it.toUri()
+        } else {
+            symphony.database.artworkCache.get(it).toUri()
+        }
+    } ?: getDefaultArtworkUri()
 
     fun getDefaultArtworkUri() = Assets.getPlaceholderUri(symphony)
 
@@ -131,8 +137,29 @@ class SongRepository(private val symphony: Symphony) {
         fallback = Assets.getPlaceholderId(symphony),
     )
 
+    fun addVybeTrack(track: io.github.zyrouge.symphony.services.api.VybeTrack): Song {
+        return symphony.groove.catalog.ingestTrack(track)
+    }
+
+    fun addVybeTracks(tracks: List<io.github.zyrouge.symphony.services.api.VybeTrack>): List<Song> {
+        return symphony.groove.catalog.ingestTracks(tracks)
+    }
+
     suspend fun getLyrics(song: Song): String? {
         try {
+            val cached = symphony.database.lyricsCache.get(song.id)
+            if (cached != null) return cached
+
+            val artist = song.artists.firstOrNull()
+            val remoteLyrics = symphony.vybeApi.getLyrics(title = song.title, artist = artist)
+            if (remoteLyrics?.lyrics != null) {
+                val formatted = parseVybeLyricsToLrc(remoteLyrics)
+                if (!formatted.isNullOrBlank()) {
+                    symphony.database.lyricsCache.put(song.id, formatted)
+                    return formatted
+                }
+            }
+
             val lrcPath = SimplePath(song.path).let {
                 it.parent?.join(it.nameWithoutExtension + ".lrc")?.pathString
             }
@@ -141,10 +168,37 @@ class SongRepository(private val symphony: Symphony) {
                     return String(it.readBytes())
                 }
             }
-            return symphony.database.lyricsCache.get(song.id)
         } catch (err: Exception) {
             Logger.error("LyricsRepository", "fetch lyrics failed", err)
         }
         return null
+    }
+
+    private fun parseVybeLyricsToLrc(data: io.github.zyrouge.symphony.services.api.VybeLyricsData): String? {
+        val lyricsElement = data.lyrics ?: return null
+        return when {
+            data.type == "synced" && lyricsElement is kotlinx.serialization.json.JsonArray -> {
+                buildString {
+                    for (line in lyricsElement) {
+                        if (line is kotlinx.serialization.json.JsonObject) {
+                            val startTimeSec = line["startTime"]?.let {
+                                (it as? kotlinx.serialization.json.JsonPrimitive)?.doubleOrNull
+                            } ?: 0.0
+                            val text = line["text"]?.let {
+                                (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+                            } ?: ""
+                            val minutes = (startTimeSec / 60).toInt()
+                            val seconds = startTimeSec % 60
+                            val timestamp = String.format(java.util.Locale.US, "[%02d:%05.2f]", minutes, seconds)
+                            appendLine("$timestamp $text")
+                        }
+                    }
+                }
+            }
+            lyricsElement is kotlinx.serialization.json.JsonPrimitive && lyricsElement.isString -> {
+                lyricsElement.content
+            }
+            else -> null
+        }
     }
 }

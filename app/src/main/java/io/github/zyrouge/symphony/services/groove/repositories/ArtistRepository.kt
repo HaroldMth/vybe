@@ -73,14 +73,28 @@ class ArtistRepository(private val symphony: Symphony) {
 
     fun reset() {
         cache.clear()
+        songIdsCache.clear()
+        albumIdsCache.clear()
         _all.update {
             emptyList()
         }
         emitCount()
     }
 
+    fun putStub(artist: Artist, apiId: String? = null) {
+        cache.putIfAbsent(artist.name, artist)
+        if (!apiId.isNullOrBlank()) {
+            cache[apiId] = cache[artist.name] ?: artist
+        }
+        _all.update {
+            if (it.contains(artist.name)) it else it + artist.name
+        }
+        emitCount()
+    }
+
     fun getArtworkUri(artistName: String) = songIdsCache[artistName]?.firstOrNull()
         ?.let { symphony.groove.song.getArtworkUri(it) }
+        ?: symphony.groove.catalog.artistCoverUri(artistName)
         ?: symphony.groove.song.getDefaultArtworkUri()
 
     fun createArtworkImageRequest(artistName: String) = createHandyImageRequest(

@@ -37,8 +37,8 @@ object UpdateSettingsViewRoute
 @Composable
 fun UpdateSettingsView(context: ViewContext) {
     val scrollState = rememberScrollState()
-    val checkForUpdates by context.symphony.settings.checkForUpdates.flow.collectAsState()
-    val showUpdateToast by context.symphony.settings.showUpdateToast.flow.collectAsState()
+    val checkForUpdates by context.symphony.settings.checkForUpdates.flow.collectAsState(context.symphony.settings.checkForUpdates.value)
+    val showUpdateToast by context.symphony.settings.showUpdateToast.flow.collectAsState(context.symphony.settings.showUpdateToast.value)
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

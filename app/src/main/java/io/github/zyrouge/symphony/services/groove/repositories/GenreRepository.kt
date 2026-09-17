@@ -67,6 +67,15 @@ class GenreRepository(private val symphony: Symphony) {
         emitCount()
     }
 
+    fun putStub(name: String) {
+        if (name.isBlank()) return
+        cache.putIfAbsent(name, Genre(name = name, numberOfTracks = 0))
+        _all.update {
+            if (it.contains(name)) it else it + name
+        }
+        emitCount()
+    }
+
     fun search(genreNames: List<String>, terms: String, limit: Int = 7) = searcher
         .search(terms, genreNames, maxLength = limit)
 

@@ -34,10 +34,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,19 +48,20 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import io.github.zyrouge.symphony.services.groove.repositories.SongRepository
+import io.github.zyrouge.symphony.services.api.VybeHomeData
+import io.github.zyrouge.symphony.services.groove.repositories.PlaylistRepository
 import io.github.zyrouge.symphony.services.radio.Radio
 import io.github.zyrouge.symphony.ui.components.IconTextBody
+import io.github.zyrouge.symphony.ui.components.PlaylistTile
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.AlbumArtistViewRoute
 import io.github.zyrouge.symphony.ui.view.AlbumViewRoute
 import io.github.zyrouge.symphony.ui.view.ArtistViewRoute
-import io.github.zyrouge.symphony.utils.randomSubList
-import io.github.zyrouge.symphony.utils.runIfOrDefault
-import io.github.zyrouge.symphony.utils.subListNonStrict
+import io.github.zyrouge.symphony.ui.view.GenreViewRoute
 
 enum class ForYou(val label: (context: ViewContext) -> String) {
     Albums(label = { it.symphony.t.SuggestedAlbums }),
@@ -68,70 +72,47 @@ enum class ForYou(val label: (context: ViewContext) -> String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ForYouView(context: ViewContext) {
-    val albumArtistsIsUpdating by context.symphony.groove.albumArtist.isUpdating.collectAsState()
-    val albumsIsUpdating by context.symphony.groove.album.isUpdating.collectAsState()
-    val artistsIsUpdating by context.symphony.groove.artist.isUpdating.collectAsState()
     val songsIsUpdating by context.symphony.groove.song.isUpdating.collectAsState()
-    val albumArtistNames by context.symphony.groove.albumArtist.all.collectAsState()
+    val songIds by context.symphony.groove.song.all.collectAsState()
     val albumIds by context.symphony.groove.album.all.collectAsState()
     val artistNames by context.symphony.groove.artist.all.collectAsState()
-    val songIds by context.symphony.groove.song.all.collectAsState()
-    val sortBy by context.symphony.settings.lastUsedSongsSortBy.flow.collectAsState()
-    val sortReverse by context.symphony.settings.lastUsedSongsSortReverse.flow.collectAsState()
+    val albumArtistNames by context.symphony.groove.albumArtist.all.collectAsState()
+    val albumsIsUpdating by context.symphony.groove.album.isUpdating.collectAsState()
+    val artistsIsUpdating by context.symphony.groove.artist.isUpdating.collectAsState()
+    val albumArtistsIsUpdating by context.symphony.groove.albumArtist.isUpdating.collectAsState()
+    var homeData by remember { mutableStateOf<VybeHomeData?>(null) }
+    var homeLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val data = context.symphony.vybeApi.getHome()
+            if (data != null) {
+                context.symphony.groove.catalog.ingestHome(data)
+                homeData = data
+            }
+        } catch (err: Exception) {
+            io.github.zyrouge.symphony.utils.Logger.error("ForYouView", "home fetch failed", err)
+        } finally {
+            homeLoading = false
+        }
+    }
+
+    val trendingSongIds = remember(homeData, songIds) {
+        homeData?.trending?.map { "vybe_${it.id}" } ?: songIds.take(12)
+    }
 
     when {
-        songIds.isNotEmpty() -> {
-            val sortedSongIds by remember(songsIsUpdating, songIds, sortBy, sortReverse) {
-                derivedStateOf {
-                    runIfOrDefault(!songsIsUpdating, listOf()) {
-                        context.symphony.groove.song.sort(songIds.toList(), sortBy, sortReverse)
-                    }
-                }
-            }
-            val recentlyAddedSongs by remember(songsIsUpdating, songIds) {
-                derivedStateOf {
-                    runIfOrDefault(!songsIsUpdating, listOf()) {
-                        context.symphony.groove.song.sort(
-                            songIds.toList(),
-                            SongRepository.SortBy.DATE_MODIFIED,
-                            true
-                        )
-                    }
-                }
-            }
-            val randomAlbums by remember(albumsIsUpdating, albumIds) {
-                derivedStateOf {
-                    runIfOrDefault(!albumsIsUpdating, listOf()) {
-                        albumIds.randomSubList(6)
-                    }
-                }
-            }
-            val randomArtists by remember(artistsIsUpdating, artistNames) {
-                derivedStateOf {
-                    runIfOrDefault(!artistsIsUpdating, listOf()) {
-                        artistNames.randomSubList(6)
-                    }
-                }
-            }
-            val randomAlbumArtists by remember(albumArtistsIsUpdating, albumArtistNames) {
-                derivedStateOf {
-                    runIfOrDefault(!albumArtistsIsUpdating, listOf()) {
-                        albumArtistNames.randomSubList(6)
-                    }
-                }
-            }
-
+        homeLoading && trendingSongIds.isEmpty() && songIds.isEmpty() -> SixGridLoading()
+        trendingSongIds.isNotEmpty() || songIds.isNotEmpty() -> {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Row(modifier = Modifier.padding(20.dp, 0.dp)) {
                     Box(modifier = Modifier.weight(1f)) {
                         ForYouButton(
                             icon = Icons.Filled.PlayArrow,
-                            text = {
-                                Text(context.symphony.t.PlayAll)
-                            },
-                            enabled = !songsIsUpdating,
+                            text = { Text(context.symphony.t.PlayAll) },
+                            enabled = !songsIsUpdating && trendingSongIds.isNotEmpty(),
                             onClick = {
-                                context.symphony.radio.shorty.playQueue(sortedSongIds)
+                                context.symphony.radio.shorty.playQueue(trendingSongIds)
                             },
                         )
                     }
@@ -139,13 +120,11 @@ fun ForYouView(context: ViewContext) {
                     Box(modifier = Modifier.weight(1f)) {
                         ForYouButton(
                             icon = Icons.Filled.Shuffle,
-                            text = {
-                                Text(context.symphony.t.ShufflePlay)
-                            },
-                            enabled = !songsIsUpdating,
+                            text = { Text(context.symphony.t.ShufflePlay) },
+                            enabled = !songsIsUpdating && trendingSongIds.isNotEmpty(),
                             onClick = {
                                 context.symphony.radio.shorty.playQueue(
-                                    songIds.toList(),
+                                    trendingSongIds,
                                     shuffle = true,
                                 )
                             }
@@ -153,13 +132,11 @@ fun ForYouView(context: ViewContext) {
                     }
                 }
                 Spacer(modifier = Modifier.height(20.dp))
-                SideHeading {
-                    Text(context.symphony.t.RecentlyAddedSongs)
-                }
+                SideHeading { Text(context.symphony.t.RecentlyAddedSongs) }
                 Spacer(modifier = Modifier.height(12.dp))
                 when {
-                    songsIsUpdating -> SixGridLoading()
-                    recentlyAddedSongs.isEmpty() -> SixGridEmpty(context)
+                    homeLoading -> SixGridLoading()
+                    trendingSongIds.isEmpty() -> SixGridEmpty(context)
                     else -> BoxWithConstraints {
                         val tileWidth = this@BoxWithConstraints.maxWidth.times(0.7f)
                         Row(
@@ -167,7 +144,7 @@ fun ForYouView(context: ViewContext) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Spacer(modifier = Modifier.width(12.dp))
-                            recentlyAddedSongs.subListNonStrict(5).forEachIndexed { i, songId ->
+                            trendingSongIds.take(8).forEachIndexed { i, songId ->
                                 val tileHeight = 96.dp
                                 val backgroundColor = MaterialTheme.colorScheme.surface
                                 val song = context.symphony.groove.song.get(songId)
@@ -179,7 +156,7 @@ fun ForYouView(context: ViewContext) {
                                         .height(tileHeight),
                                     onClick = {
                                         context.symphony.radio.shorty.playQueue(
-                                            recentlyAddedSongs,
+                                            trendingSongIds,
                                             options = Radio.PlayOptions(index = i),
                                         )
                                     }
@@ -265,7 +242,76 @@ fun ForYouView(context: ViewContext) {
                         }
                     }
                 }
+
+                val newReleaseIds = homeData?.newReleases?.map { it.id }.orEmpty()
+                if (newReleaseIds.isNotEmpty()) {
+                    SuggestedAlbums(
+                        context,
+                        isLoading = homeLoading,
+                        albumIds = newReleaseIds.take(6),
+                    )
+                }
+
+                val homeArtistNames = homeData?.artists?.map { it.name }.orEmpty()
+                if (homeArtistNames.isNotEmpty()) {
+                    SuggestedArtists(
+                        context,
+                        label = context.symphony.t.SuggestedArtists,
+                        isLoading = homeLoading,
+                        artistNames = homeArtistNames.take(6),
+                    )
+                }
+
+                val homePlaylists = homeData?.playlists.orEmpty()
+                if (homePlaylists.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    SideHeading { Text(context.symphony.t.Playlists) }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    StatedSixGrid(
+                        context,
+                        isLoading = homeLoading,
+                        items = homePlaylists.take(6).map {
+                            PlaylistRepository.remoteId(it.id)
+                        }
+                    ) { playlistId ->
+                        context.symphony.groove.playlist.get(playlistId)?.let { playlist ->
+                            PlaylistTile(context, playlist)
+                        }
+                    }
+                }
+
+                // NOTE: previously used GenreGrid(context, homeGenres.take(8)) here.
+                // GenreGrid wraps a LazyVerticalGrid internally (via ResponsiveGrid),
+                // and nesting a lazy grid inside this screen's outer
+                // Column(Modifier.verticalScroll(...)) crashes immediately with:
+                // "Vertically scrollable component was measured with an infinity
+                // maximum height constraints". Using a small non-lazy grid instead,
+                // same pattern as SuggestedAlbums/SuggestedArtists above.
+                val homeGenres = homeData?.genres?.map { it.name }.orEmpty()
+                if (homeGenres.isNotEmpty()) {
+                    SuggestedGenres(
+                        context,
+                        isLoading = homeLoading,
+                        genreNames = homeGenres.take(6),
+                    )
+                }
+
                 val contents by context.symphony.settings.forYouContents.flow.collectAsState()
+                val randomAlbums by remember(albumsIsUpdating, albumIds) {
+                    derivedStateOf {
+                        albumIds.shuffled().take(6)
+                    }
+                }
+                val randomArtists by remember(artistsIsUpdating, artistNames) {
+                    derivedStateOf {
+                        artistNames.shuffled().take(6)
+                    }
+                }
+                val randomAlbumArtists by remember(albumArtistsIsUpdating, albumArtistNames) {
+                    derivedStateOf {
+                        albumArtistNames.shuffled().take(6)
+                    }
+                }
                 contents.forEach {
                     when (it) {
                         ForYou.Albums -> SuggestedAlbums(
@@ -529,6 +575,57 @@ private fun SuggestedAlbumArtists(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(4.dp)),
             )
+        }
+    }
+}
+
+// Lightweight, non-lazy genre preview grid for the For You screen.
+// Deliberately does NOT reuse GenreGrid (ui/components/GenreGrid.kt), which wraps
+// a LazyVerticalGrid via ResponsiveGrid — that crashes when nested inside this
+// screen's Column(Modifier.verticalScroll(...)) because a lazy grid needs a
+// bounded height to measure against and the scrollable Column gives it infinity.
+// GenreGrid is fine as-is for its own full-page/dedicated-route usage; just don't
+// call it from inside another scrollable container.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SuggestedGenres(
+    context: ViewContext,
+    isLoading: Boolean,
+    genreNames: List<String>,
+) {
+    val genres by remember(genreNames) {
+        derivedStateOf {
+            genreNames.mapNotNull { context.symphony.groove.genre.get(it) }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(24.dp))
+    SideHeading {
+        Text(context.symphony.t.Genres)
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+    StatedSixGrid(context, isLoading, genres) { genre ->
+        Card(
+            onClick = {
+                context.navController.navigate(GenreViewRoute(genre.name))
+            }
+        ) {
+            Box(
+                modifier = Modifier
+                    .aspectRatio(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(4.dp))
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    genre.name,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

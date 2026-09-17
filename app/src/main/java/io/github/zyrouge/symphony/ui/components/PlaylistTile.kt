@@ -231,7 +231,7 @@ fun PlaylistDropdownMenu(
                 showAddToPlaylistDialog = true
             }
         )
-        if (playlist.isNotLocal) {
+        if (playlist.isNotLocal && !context.symphony.groove.playlist.isRemotePlaylist(playlist)) {
             DropdownMenuItem(
                 leadingIcon = {
                     Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null)
@@ -257,7 +257,7 @@ fun PlaylistDropdownMenu(
                 showInfoDialog = true
             }
         )
-        if (playlist.isNotLocal) {
+        if (playlist.isNotLocal && !context.symphony.groove.playlist.isRemotePlaylist(playlist)) {
             DropdownMenuItem(
                 leadingIcon = {
                     Icon(Icons.Filled.Save, null)

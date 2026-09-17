@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.zyrouge.symphony.services.AppMeta
 import io.github.zyrouge.symphony.services.Permissions
 import io.github.zyrouge.symphony.services.Settings
+import io.github.zyrouge.symphony.services.api.VybeApiClient
 import io.github.zyrouge.symphony.services.database.Database
 import io.github.zyrouge.symphony.services.groove.Groove
 import io.github.zyrouge.symphony.services.i18n.Translator
@@ -29,6 +30,7 @@ class Symphony(application: Application) : AndroidViewModel(application), Sympho
 
     val permission = Permissions(this)
     val settings = Settings(this)
+    val vybeApi = VybeApiClient(this)
     val database = Database(this)
     val groove = Groove(this)
     val radio = Radio(this)
