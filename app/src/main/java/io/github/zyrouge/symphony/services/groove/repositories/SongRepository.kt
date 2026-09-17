@@ -181,15 +181,24 @@ class SongRepository(private val symphony: Symphony) {
                 buildString {
                     for (line in lyricsElement) {
                         if (line is kotlinx.serialization.json.JsonObject) {
-                            val startTimeSec = line["startTime"]?.let {
+                            // API returns startTime in milliseconds (see lyrics API docs)
+                            val startTimeMs = line["startTime"]?.let {
                                 (it as? kotlinx.serialization.json.JsonPrimitive)?.doubleOrNull
                             } ?: 0.0
                             val text = line["text"]?.let {
                                 (it as? kotlinx.serialization.json.JsonPrimitive)?.content
                             } ?: ""
-                            val minutes = (startTimeSec / 60).toInt()
-                            val seconds = startTimeSec % 60
-                            val timestamp = String.format(java.util.Locale.US, "[%02d:%05.2f]", minutes, seconds)
+                            val totalMs = startTimeMs.toLong()
+                            val minutes = totalMs / 60000
+                            val seconds = (totalMs % 60000) / 1000
+                            val millis = totalMs % 1000
+                            val timestamp = String.format(
+                                java.util.Locale.US,
+                                "[%02d:%02d.%03d]",
+                                minutes,
+                                seconds,
+                                millis,
+                            )
                             appendLine("$timestamp $text")
                         }
                     }
