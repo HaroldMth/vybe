@@ -394,7 +394,7 @@ private fun SixGridLoading() {
             .padding(0.dp, 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        CircularProgressIndicator()
+        io.github.zyrouge.symphony.ui.components.PulsingBarsLoader()
     }
 }
 

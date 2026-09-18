@@ -2,7 +2,9 @@ package io.github.zyrouge.symphony.ui.components
 
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -18,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
@@ -55,6 +59,7 @@ import io.github.zyrouge.symphony.ui.view.AlbumViewRoute
 import io.github.zyrouge.symphony.ui.view.ArtistViewRoute
 import io.github.zyrouge.symphony.utils.Logger
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SongCard(
     context: ViewContext,
@@ -77,11 +82,17 @@ fun SongCard(
     val isFavorite by remember(favoriteSongIds, song) {
         derivedStateOf { favoriteSongIds.contains(song.id) }
     }
+    // Hoisted so a long-press on the card can open the same menu as the ⋮ button.
+    var showOptionsMenu by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { showOptionsMenu = true },
+            ),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        onClick = onClick
     ) {
         Box(modifier = Modifier.padding(12.dp, 12.dp, 4.dp, 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -163,7 +174,8 @@ fun SongCard(
                         }
                     }
 
-                    var showOptionsMenu by remember { mutableStateOf(false) }
+                    DownloadIconButton(context, song)
+
                     IconButton(
                         onClick = { showOptionsMenu = !showOptionsMenu }
                     ) {
@@ -200,6 +212,19 @@ fun SongDropdownMenu(
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
+    val downloadPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        if (results.all { it.value }) {
+            context.symphony.downloader.download(song)
+        } else {
+            Toast.makeText(
+                context.activity,
+                "Storage permission is needed to download songs",
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
 
     DropdownMenu(
         expanded = expanded,
@@ -225,6 +250,30 @@ fun SongDropdownMenu(
                 }
             }
         )
+        if (song.id.startsWith("vybe_")) {
+            val downloaded = context.symphony.downloader.isDownloaded(song.id)
+            DropdownMenuItem(
+                leadingIcon = {
+                    Icon(if (downloaded) Icons.Filled.CloudDone else Icons.Filled.Download, null)
+                },
+                text = {
+                    Text(if (downloaded) "Downloaded" else "Download")
+                },
+                onClick = {
+                    onDismissRequest()
+                    if (!downloaded) {
+                        val required = context.symphony.permission.getStoragePermissions()
+                        if (required.isEmpty() ||
+                            context.symphony.permission.hasStoragePermissions(context.activity)
+                        ) {
+                            context.symphony.downloader.download(song)
+                        } else {
+                            downloadPermissionLauncher.launch(required.toTypedArray())
+                        }
+                    }
+                }
+            )
+        }
         DropdownMenuItem(
             leadingIcon = {
                 Icon(Icons.AutoMirrored.Filled.PlaylistPlay, null)

@@ -62,6 +62,9 @@ fun BaseView(symphony: Symphony, activity: MainActivity) {
                 baseComposable<QueueViewRoute> {
                     QueueView(context)
                 }
+                baseComposable<DownloadsViewRoute> {
+                    DownloadsView(context)
+                }
                 baseComposable<ArtistViewRoute> {
                     ArtistView(context, it.toRoute())
                 }

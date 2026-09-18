@@ -35,6 +35,7 @@ class Symphony(application: Application) : AndroidViewModel(application), Sympho
     val groove = Groove(this)
     val radio = Radio(this)
     val translator = Translator(this)
+    val downloader = io.github.zyrouge.symphony.services.download.DownloadManager(this)
 
     var t by mutableStateOf(translator.getCurrentTranslation())
 

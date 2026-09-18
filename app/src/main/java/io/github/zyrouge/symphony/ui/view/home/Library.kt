@@ -55,21 +55,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import io.github.zyrouge.symphony.services.download.DownloadStatus
 import io.github.zyrouge.symphony.ui.components.NewPlaylistDialog
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.ArtistViewRoute
+import io.github.zyrouge.symphony.ui.view.DownloadsViewRoute
 import io.github.zyrouge.symphony.ui.view.PlaylistViewRoute
 
 @Composable
 fun LibraryView(context: ViewContext) {
     val favoriteSongIds by context.symphony.groove.playlist.favorites.collectAsState()
     val allPlaylists by context.symphony.groove.playlist.all.collectAsState()
-    val allSongIds by context.symphony.groove.song.all.collectAsState()
-
-    // Recent songs — last 15 from the full song list as a simple proxy
-    // (proper history tracking will come with the RadioQueue history feature)
-    val recentSongIds by remember(allSongIds) {
-        derivedStateOf { allSongIds.takeLast(15).reversed() }
+    val downloadStates by context.symphony.downloader.states.collectAsState()
+    val downloadedCount by remember(downloadStates) {
+        derivedStateOf { downloadStates.values.count { it.status == DownloadStatus.COMPLETED } }
     }
 
     val playlists by remember(allPlaylists) {
@@ -99,7 +98,7 @@ fun LibraryView(context: ViewContext) {
                     .padding(horizontal = 16.dp)
                     .fillMaxWidth()
                     .clickable {
-                        // TODO: navigate to Downloads screen (Phase 7)
+                        context.navController.navigate(DownloadsViewRoute)
                     },
                 elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
             ) {
@@ -128,7 +127,7 @@ fun LibraryView(context: ViewContext) {
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                         )
                         Text(
-                            "Saved to Music/Vybe",
+                            if (downloadedCount > 0) "$downloadedCount downloaded" else "Saved to Music/Vybe",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             ),
@@ -163,51 +162,6 @@ fun LibraryView(context: ViewContext) {
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
-        }
-
-        // ── Recents ───────────────────────────────────────────────────────────
-        if (recentSongIds.isNotEmpty()) {
-            item {
-                LibrarySectionHeader(
-                    icon = Icons.Filled.History,
-                    title = "Recently Added",
-                    actionLabel = null,
-                    onAction = null,
-                )
-            }
-            items(recentSongIds.take(6)) { songId ->
-                context.symphony.groove.song.get(songId)?.let { song ->
-                    ListItem(
-                        modifier = Modifier.clickable {
-                            context.symphony.radio.shorty.playQueue(songId)
-                        },
-                        leadingContent = {
-                            AsyncImage(
-                                song.createArtworkImageRequest(context.symphony).build(),
-                                null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(6.dp)),
-                            )
-                        },
-                        headlineContent = {
-                            Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        },
-                        supportingContent = {
-                            Text(
-                                song.artists.joinToString(),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                )
-                            )
-                        },
-                    )
-                }
-            }
-            item { Spacer(modifier = Modifier.height(24.dp)) }
         }
 
         // ── Playlists ─────────────────────────────────────────────────────────

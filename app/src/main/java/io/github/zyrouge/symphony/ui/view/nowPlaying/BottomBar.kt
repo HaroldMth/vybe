@@ -19,10 +19,6 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MotionPhotosPaused
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,7 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.github.zyrouge.symphony.services.radio.RadioQueue
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.LyricsViewRoute
 import io.github.zyrouge.symphony.ui.view.NowPlayingData
@@ -57,6 +52,11 @@ import io.github.zyrouge.symphony.ui.view.QueueViewRoute
 import io.github.zyrouge.symphony.utils.Logger
 import kotlinx.coroutines.launch
 
+/**
+ * Bottom row: [≡ queue count]  ...  [lyrics]
+ * Shuffle, repeat and ⋯ live in the main control row / top app bar now —
+ * this row only owns things that aren't shown anywhere else on screen.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NowPlayingBodyBottomBar(
@@ -73,7 +73,8 @@ fun NowPlayingBodyBottomBar(
     var showSleepTimerDialog by remember { mutableStateOf(false) }
     var showSpeedDialog by remember { mutableStateOf(false) }
     var showPitchDialog by remember { mutableStateOf(false) }
-    var showExtraOptions by remember { mutableStateOf(false) }
+    // Hoisted so the top app bar's ⋯ button can open this same sheet.
+    val showExtraOptions by states.showExtraOptions.collectAsState()
 
     data.run {
         Row(
@@ -134,44 +135,6 @@ fun NowPlayingBodyBottomBar(
                     )
                 }
             }
-            IconButton(
-                onClick = {
-                    context.symphony.radio.queue.toggleLoopMode()
-                }
-            ) {
-                Icon(
-                    when (currentLoopMode) {
-                        RadioQueue.LoopMode.Song -> Icons.Filled.RepeatOne
-                        else -> Icons.Filled.Repeat
-                    },
-                    null,
-                    tint = when (currentLoopMode) {
-                        RadioQueue.LoopMode.None -> LocalContentColor.current
-                        else -> MaterialTheme.colorScheme.primary
-                    }
-                )
-            }
-            IconButton(
-                onClick = {
-                    context.symphony.radio.queue.toggleShuffleMode()
-                }
-            ) {
-                Icon(
-                    Icons.Filled.Shuffle,
-                    null,
-                    tint = when {
-                        currentShuffleMode -> MaterialTheme.colorScheme.primary
-                        else -> LocalContentColor.current
-                    },
-                )
-            }
-            IconButton(
-                onClick = {
-                    showExtraOptions = !showExtraOptions
-                }
-            ) {
-                Icon(Icons.Outlined.MoreHoriz, null)
-            }
         }
 
         if (showSleepTimerDialog) {
@@ -218,7 +181,7 @@ fun NowPlayingBodyBottomBar(
         if (showExtraOptions) {
             val sheetState = rememberModalBottomSheetState()
             val closeBottomSheet = {
-                showExtraOptions = false
+                states.showExtraOptions.value = false
                 coroutineScope.launch {
                     sheetState.hide()
                 }
@@ -228,7 +191,7 @@ fun NowPlayingBodyBottomBar(
                 sheetState = sheetState,
                 containerColor = MaterialTheme.colorScheme.surface,
                 onDismissRequest = {
-                    showExtraOptions = false
+                    states.showExtraOptions.value = false
                 },
             ) {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {

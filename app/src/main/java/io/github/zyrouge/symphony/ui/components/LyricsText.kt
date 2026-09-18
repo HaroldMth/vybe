@@ -117,10 +117,11 @@ fun LyricsText(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    if (targetLyricsState == 1) context.symphony.t.Loading
-                    else context.symphony.t.NoLyrics
-                )
+                if (targetLyricsState == 1) {
+                    PulsingBarsLoader()
+                } else {
+                    Text(context.symphony.t.NoLyrics)
+                }
             }
         }
     }

@@ -38,6 +38,7 @@ data class NowPlayingData(
 
 data class NowPlayingStates(
     val showLyrics: MutableStateFlow<Boolean>,
+    val showExtraOptions: MutableStateFlow<Boolean>,
 )
 
 object NowPlayingDefaults {

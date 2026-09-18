@@ -41,6 +41,7 @@ fun NowPlayingBody(context: ViewContext, data: NowPlayingData) {
             showLyrics = MutableStateFlow(
                 data.lyricsLayout == NowPlayingLyricsLayout.ReplaceArtwork && NowPlayingDefaults.showLyrics
             ),
+            showExtraOptions = MutableStateFlow(false),
         )
     }
 

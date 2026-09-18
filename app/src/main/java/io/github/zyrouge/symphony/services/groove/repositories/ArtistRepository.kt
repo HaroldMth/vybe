@@ -82,6 +82,11 @@ class ArtistRepository(private val symphony: Symphony) {
     }
 
     fun putStub(artist: Artist, apiId: String? = null) {
+        // A blank artist name can never be safely navigated to (type-safe Navigation
+        // routes crash on empty String arguments), so refuse to store one here too.
+        if (artist.name.isBlank()) {
+            return
+        }
         cache.putIfAbsent(artist.name, artist)
         if (!apiId.isNullOrBlank()) {
             cache[apiId] = cache[artist.name] ?: artist

@@ -108,7 +108,7 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
                         false
                     }
                 }
-            } ?: RadioPlayer(symphony, song.id, song.uri)
+            } ?: RadioPlayer(symphony, song.id, symphony.downloader.resolvePlaybackUri(song))
             nextPlayer = null
             player!!.setOnPreparedListener {
                 options.startPosition?.let {
@@ -166,7 +166,7 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
         }
         try {
             nextPlayer?.destroy()
-            nextPlayer = RadioPlayer(symphony, song.id, song.uri).also {
+            nextPlayer = RadioPlayer(symphony, song.id, symphony.downloader.resolvePlaybackUri(song)).also {
                 it.prepare()
             }
         } catch (err: Exception) {

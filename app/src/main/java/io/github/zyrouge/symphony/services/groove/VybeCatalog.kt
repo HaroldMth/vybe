@@ -149,7 +149,14 @@ class VybeCatalog(private val symphony: Symphony) {
     }
 
     fun ingestArtistStub(artist: VybeArtist) {
-        if (artist.name.isNotBlank() && artist.id.isNotBlank()) {
+        // An artist with a blank name can arrive from the API (missing "name" field
+        // defaults to ""). A blank string used as a type-safe Navigation argument
+        // crashes RouteDecoder with "Unexpected null value for non-nullable argument"
+        // when the artist is later tapped, so never let one enter the local store.
+        if (artist.name.isBlank()) {
+            return
+        }
+        if (artist.id.isNotBlank()) {
             artistIdByName[artist.name] = artist.id
         }
         artist.coverUrl?.let {
