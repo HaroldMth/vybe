@@ -5,6 +5,7 @@ import android.media.PlaybackParams
 import android.net.Uri
 import io.github.zyrouge.symphony.Symphony
 import io.github.zyrouge.symphony.utils.Logger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.Timer
 
@@ -85,15 +86,32 @@ class RadioPlayer(val symphony: Symphony, val id: String, val uri: Uri) {
                 onError?.invoke(what, extra)
                 true
             }
-            ump.setDataSource(symphony.applicationContext, uri)
+            // NOTE: setDataSource is intentionally NOT called here. For remote
+            // (http/https) sources it performs blocking network I/O, and this
+            // constructor runs on the caller's thread — usually the UI/main
+            // thread (song clicks go straight through RadioShorty -> Radio.play()).
+            // Calling it here throws NetworkOnMainThreadException, which was being
+            // silently swallowed by Radio.play()'s try/catch: the queue/UI (and
+            // lyrics) would update, but no player was ever created, so nothing
+            // played and the play/pause button had no player to act on.
+            // It's deferred into prepare() below, off the main thread, instead.
         }
     }
 
     fun prepare() {
         when (state) {
             State.Unprepared -> {
-                unsafeMediaPlayer.prepareAsync()
                 state = State.Preparing
+                symphony.groove.coroutineScope.launch(Dispatchers.IO) {
+                    try {
+                        unsafeMediaPlayer.setDataSource(symphony.applicationContext, uri)
+                        unsafeMediaPlayer.prepareAsync()
+                    } catch (err: Exception) {
+                        Logger.error("RadioPlayer", "failed to set data source for $uri", err)
+                        state = State.Destroyed
+                        onError?.invoke(-1, -1)
+                    }
+                }
             }
 
             State.Prepared -> onPrepared?.invoke()

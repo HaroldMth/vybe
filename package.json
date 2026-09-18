@@ -41,5 +41,14 @@
         "prettier-plugin-toml": "^2.0.1",
         "tsx": "^4.19.2",
         "typescript": "^5.7.2"
+    },
+    "dependencies": {
+        "puppeteer": "^25.11.0",
+        "puppeteer-extra": "^3.3.6",
+        "puppeteer-extra-plugin-stealth": "^2.11.2"
+    },
+    "allowScripts": {
+        "esbuild@0.23.1": true,
+        "puppeteer@25.11.0": true
     }
 }
