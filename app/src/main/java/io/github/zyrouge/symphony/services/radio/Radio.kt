@@ -98,6 +98,7 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
             onSongFinish(SongFinishSource.Exception)
             return
         }
+        symphony.history.addPlayed(song.id)
         try {
             queue.currentSongIndex = options.index
             player = nextPlayer?.takeIf {

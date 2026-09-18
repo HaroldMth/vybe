@@ -16,14 +16,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -54,6 +60,7 @@ import io.github.zyrouge.symphony.ui.helpers.ScreenOrientation
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.AlbumViewRoute
 import io.github.zyrouge.symphony.ui.view.NowPlayingData
+import io.github.zyrouge.symphony.ui.view.NowPlayingLyricsLayout
 import io.github.zyrouge.symphony.ui.view.NowPlayingStates
 
 @Composable
@@ -88,8 +95,10 @@ fun NowPlayingBodyCover(
 @Composable
 private fun NowPlayingBodyCoverLyrics(context: ViewContext, orientation: ScreenOrientation) {
     val keepScreenAwake by context.symphony.settings.lyricsKeepScreenAwake.flow.collectAsState()
+    val lyricsLayout by context.symphony.settings.nowPlayingLyricsLayout.flow.collectAsState()
     val lyricsData by context.symphony.radio.observatory.lyrics.collectAsState()
     val density = LocalDensity.current
+    var showLyricsSettingsMenu by remember { mutableStateOf(false) }
     // Measured from the real header instead of a hardcoded offset, so the
     // lyrics never start underneath the "LYRICS" row regardless of font
     // scale or how long the source pill's text ends up being.
@@ -146,16 +155,65 @@ private fun NowPlayingBodyCoverLyrics(context: ViewContext, orientation: ScreenO
                     }
                 }
                 Spacer(modifier = Modifier.width(4.dp))
-                IconButton(
-                    onClick = { /* TODO: lyrics settings */ },
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        Icons.Filled.Settings,
-                        null,
-                        modifier = Modifier.size(18.dp),
-                        tint = Color.White.copy(alpha = 0.6f),
-                    )
+                Box {
+                    IconButton(
+                        onClick = { showLyricsSettingsMenu = true },
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.Settings,
+                            null,
+                            modifier = Modifier.size(18.dp),
+                            tint = Color.White.copy(alpha = 0.6f),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showLyricsSettingsMenu,
+                        onDismissRequest = { showLyricsSettingsMenu = false },
+                    ) {
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(Icons.AutoMirrored.Outlined.Article, null)
+                            },
+                            text = {
+                                Text(
+                                    when (lyricsLayout) {
+                                        NowPlayingLyricsLayout.ReplaceArtwork -> "Layout: Over artwork"
+                                        NowPlayingLyricsLayout.SeparatePage -> "Layout: Separate page"
+                                    }
+                                )
+                            },
+                            onClick = {
+                                val next = when (lyricsLayout) {
+                                    NowPlayingLyricsLayout.ReplaceArtwork ->
+                                        NowPlayingLyricsLayout.SeparatePage
+                                    NowPlayingLyricsLayout.SeparatePage ->
+                                        NowPlayingLyricsLayout.ReplaceArtwork
+                                }
+                                context.symphony.settings.nowPlayingLyricsLayout.setValue(next)
+                            }
+                        )
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(Icons.Filled.Nightlight, null)
+                            },
+                            text = {
+                                Text("Keep screen awake")
+                            },
+                            trailingIcon = {
+                                Switch(
+                                    checked = keepScreenAwake,
+                                    onCheckedChange = {
+                                        context.symphony.settings.lyricsKeepScreenAwake.setValue(it)
+                                    },
+                                    colors = SwitchDefaults.colors(),
+                                )
+                            },
+                            onClick = {
+                                context.symphony.settings.lyricsKeepScreenAwake.setValue(!keepScreenAwake)
+                            }
+                        )
+                    }
                 }
             }
 

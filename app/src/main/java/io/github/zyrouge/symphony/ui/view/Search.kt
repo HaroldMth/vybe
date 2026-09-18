@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.view
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,9 +13,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -173,6 +179,13 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                     keyboardOptions = KeyboardOptions(
                         imeAction = ImeAction.Search,
                     ),
+                    keyboardActions = KeyboardActions(
+                        onSearch = {
+                            if (terms.isNotEmpty()) {
+                                context.symphony.history.addSearch(terms)
+                            }
+                        }
+                    ),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
@@ -258,24 +271,29 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
             }
         },
         content = { contentPadding ->
-            results?.run {
-                val hasSongs = isChipSelected(Groove.Kind.SONG) && songIds.isNotEmpty()
-                val hasArtists = isChipSelected(Groove.Kind.ARTIST) && artistNames.isNotEmpty()
-                val hasAlbums = isChipSelected(Groove.Kind.ALBUM) && albumIds.isNotEmpty()
-                val hasAlbumArtists =
-                    isChipSelected(Groove.Kind.ALBUM_ARTIST) && albumArtistNames.isNotEmpty()
-                val hasPlaylists =
-                    isChipSelected(Groove.Kind.PLAYLIST) && playlistIds.isNotEmpty()
-                val hasGenres = isChipSelected(Groove.Kind.GENRE) && genreNames.isNotEmpty()
-                val hasNoResults =
-                    !hasSongs && !hasArtists && !hasAlbums && !hasAlbumArtists && !hasPlaylists && !hasGenres
+            Box(
+                modifier = Modifier
+                    .padding(contentPadding)
+                    .fillMaxSize(),
+            ) {
+                if (terms.isEmpty()) {
+                    SearchHistoryContent(
+                        context,
+                        onTermClick = { setTerms(it) },
+                    )
+                } else {
+                    results?.run {
+                        val hasSongs = isChipSelected(Groove.Kind.SONG) && songIds.isNotEmpty()
+                        val hasArtists = isChipSelected(Groove.Kind.ARTIST) && artistNames.isNotEmpty()
+                        val hasAlbums = isChipSelected(Groove.Kind.ALBUM) && albumIds.isNotEmpty()
+                        val hasAlbumArtists =
+                            isChipSelected(Groove.Kind.ALBUM_ARTIST) && albumArtistNames.isNotEmpty()
+                        val hasPlaylists =
+                            isChipSelected(Groove.Kind.PLAYLIST) && playlistIds.isNotEmpty()
+                        val hasGenres = isChipSelected(Groove.Kind.GENRE) && genreNames.isNotEmpty()
+                        val hasNoResults =
+                            !hasSongs && !hasArtists && !hasAlbums && !hasAlbumArtists && !hasPlaylists && !hasGenres
 
-                Box(
-                    modifier = Modifier
-                        .padding(contentPadding)
-                        .fillMaxSize(),
-                ) {
-                    if (terms.isNotEmpty()) {
                         when {
                             isSearching -> {
                                 Box(modifier = Modifier.align(Alignment.Center)) {
@@ -479,6 +497,81 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
             AnimatedNowPlayingBottomBar(context)
         }
     )
+}
+
+@Composable
+private fun SearchHistoryContent(context: ViewContext, onTermClick: (String) -> Unit) {
+    val recentSearches by context.symphony.history.recentSearches.collectAsState()
+    val recentlyPlayedIds by context.symphony.history.recentlyPlayed.collectAsState()
+
+    if (recentSearches.isEmpty() && recentlyPlayedIds.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            IconTextBody(
+                icon = { modifier -> Icon(Icons.Filled.Search, null, modifier = modifier) },
+                content = { Text(context.symphony.t.SearchYourMusic) }
+            )
+        }
+        return
+    }
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        if (recentSearches.isNotEmpty()) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp, 12.dp, 12.dp, 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    SideHeading("Recent searches")
+                    TextButton(
+                        onClick = { context.symphony.history.clearSearches() }
+                    ) {
+                        Text("Clear")
+                    }
+                }
+            }
+            item {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp),
+                ) {
+                    recentSearches.forEach { term ->
+                        AssistChip(
+                            onClick = { onTermClick(term) },
+                            label = { Text(term) },
+                            trailingIcon = {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    null,
+                                    modifier = Modifier
+                                        .clickable {
+                                            context.symphony.history.removeSearch(term)
+                                        }
+                                )
+                            }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+
+        if (recentlyPlayedIds.isNotEmpty()) {
+            item {
+                SideHeading("Recently played")
+            }
+            items(recentlyPlayedIds) { songId ->
+                context.symphony.groove.song.get(songId)?.let { song ->
+                    SongCard(context, song) {
+                        context.symphony.radio.shorty.playQueue(song.id)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
