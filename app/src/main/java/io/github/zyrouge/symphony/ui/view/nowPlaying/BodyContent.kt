@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.view.nowPlaying
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
@@ -116,7 +117,7 @@ fun NowPlayingBodyContent(context: ViewContext, data: NowPlayingData, states: No
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.pointerInput(Unit) {
                                             detectTapGestures { _ ->
-                                                context.navController.navigate(ArtistViewRoute(artist))
+                                                context.navController.navigateSafe(ArtistViewRoute(artist))
                                             }
                                         },
                                     )

@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.view.nowPlaying
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
@@ -291,7 +292,7 @@ private fun NowPlayingBodyCoverArtwork(context: ViewContext, song: Song) {
                                 context.symphony.groove.album
                                     .getIdFromSong(song)
                                     ?.let {
-                                        context.navController.navigate(AlbumViewRoute(it))
+                                        context.navController.navigateSafe(AlbumViewRoute(it))
                                     }
                             }
                         }

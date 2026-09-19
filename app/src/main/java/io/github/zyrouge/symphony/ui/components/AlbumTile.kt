@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.components
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
@@ -55,7 +56,7 @@ fun AlbumTile(context: ViewContext, album: Album) {
             context.symphony.radio.shorty.playQueue(album.getSortedSongIds(context.symphony))
         },
         onClick = {
-            context.navController.navigate(AlbumViewRoute(album.id))
+            context.navController.navigateSafe(AlbumViewRoute(album.id))
         }
     )
 }
@@ -137,7 +138,7 @@ fun AlbumDropdownMenu(
                 },
                 onClick = {
                     onDismissRequest()
-                    context.navController.navigate(ArtistViewRoute(artistName))
+                    context.navController.navigateSafe(ArtistViewRoute(artistName))
                 }
             )
         }

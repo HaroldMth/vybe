@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.view.home
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -542,7 +543,7 @@ private fun SuggestedAlbums(
             modifier = Modifier
                 .width(128.dp)
                 .clickable {
-                    context.navController.navigate(AlbumViewRoute(album.id))
+                    context.navController.navigateSafe(AlbumViewRoute(album.id))
                 }
         ) {
             AsyncImage(
@@ -599,9 +600,9 @@ private fun SuggestedArtists(
                         .width(88.dp)
                         .clickable {
                             if (asAlbumArtists) {
-                                context.navController.navigate(AlbumArtistViewRoute(artistName))
+                                context.navController.navigateSafe(AlbumArtistViewRoute(artistName))
                             } else {
-                                context.navController.navigate(ArtistViewRoute(artistName))
+                                context.navController.navigateSafe(ArtistViewRoute(artistName))
                             }
                         },
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -657,7 +658,7 @@ private fun SuggestedGenres(
                 val color = palette[Math.floorMod(genre.name.hashCode(), palette.size)]
                 Surface(
                     modifier = Modifier.clickable {
-                        context.navController.navigate(GenreViewRoute(genre.name))
+                        context.navController.navigateSafe(GenreViewRoute(genre.name))
                     },
                     shape = RoundedCornerShape(50),
                     color = color.copy(alpha = 0.16f),

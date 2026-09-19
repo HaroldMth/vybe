@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.view
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -165,7 +166,7 @@ private fun AlbumHero(context: ViewContext, album: Album) {
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.pointerInput(Unit) {
                                         detectTapGestures { _ ->
-                                            context.navController.navigate(ArtistViewRoute(it))
+                                            context.navController.navigateSafe(ArtistViewRoute(it))
                                         }
                                     },
                                 )

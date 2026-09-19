@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.view
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -221,7 +222,7 @@ fun EmbeddedSearchView(context: ViewContext) {
                                             options = { exp, dis ->
                                                 ArtistDropdownMenu(context, artist, expanded = exp, onDismissRequest = dis)
                                             },
-                                            onClick = { context.navController.navigate(ArtistViewRoute(artist.name)) }
+                                            onClick = { context.navController.navigateSafe(ArtistViewRoute(artist.name)) }
                                         )
                                     }
                                 }
@@ -237,7 +238,7 @@ fun EmbeddedSearchView(context: ViewContext) {
                                             options = { exp, dis ->
                                                 AlbumDropdownMenu(context, album, expanded = exp, onDismissRequest = dis)
                                             },
-                                            onClick = { context.navController.navigate(AlbumViewRoute(album.id)) }
+                                            onClick = { context.navController.navigateSafe(AlbumViewRoute(album.id)) }
                                         )
                                     }
                                 }
@@ -252,7 +253,7 @@ fun EmbeddedSearchView(context: ViewContext) {
                                             options = { exp, dis ->
                                                 AlbumArtistDropdownMenu(context, albumArtist, expanded = exp, onDismissRequest = dis)
                                             },
-                                            onClick = { context.navController.navigate(AlbumArtistViewRoute(albumArtist.name)) }
+                                            onClick = { context.navController.navigateSafe(AlbumArtistViewRoute(albumArtist.name)) }
                                         )
                                     }
                                 }
@@ -267,7 +268,7 @@ fun EmbeddedSearchView(context: ViewContext) {
                                             options = { exp, dis ->
                                                 PlaylistDropdownMenu(context, playlist, expanded = exp, onDismissRequest = dis)
                                             },
-                                            onClick = { context.navController.navigate(PlaylistViewRoute(playlist.id)) }
+                                            onClick = { context.navController.navigateSafe(PlaylistViewRoute(playlist.id)) }
                                         )
                                     }
                                 }

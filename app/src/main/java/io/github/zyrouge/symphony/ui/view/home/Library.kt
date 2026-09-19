@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.view.home
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -198,7 +199,7 @@ fun LibraryView(context: ViewContext) {
                             subtitle = "${playlist.songPaths.size} songs",
                             artworkRequest = playlist.createArtworkImageRequest(context.symphony).build(),
                         ) {
-                            context.navController.navigate(PlaylistViewRoute(playlist.id))
+                            context.navController.navigateSafe(PlaylistViewRoute(playlist.id))
                         }
                     }
                 }

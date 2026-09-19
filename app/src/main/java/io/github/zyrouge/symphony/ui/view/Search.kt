@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.view
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -363,7 +364,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                                                             )
                                                         },
                                                         onClick = {
-                                                            context.navController.navigate(
+                                                            context.navController.navigateSafe(
                                                                 ArtistViewRoute(artist.name)
                                                             )
                                                         }
@@ -395,7 +396,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                                                             )
                                                         },
                                                         onClick = {
-                                                            context.navController.navigate(
+                                                            context.navController.navigateSafe(
                                                                 AlbumViewRoute(album.id)
                                                             )
                                                         }
@@ -424,7 +425,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                                                             )
                                                         },
                                                         onClick = {
-                                                            context.navController.navigate(
+                                                            context.navController.navigateSafe(
                                                                 AlbumArtistViewRoute(albumArtist.name)
                                                             )
                                                         }
@@ -453,7 +454,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                                                             )
                                                         },
                                                         onClick = {
-                                                            context.navController.navigate(
+                                                            context.navController.navigateSafe(
                                                                 PlaylistViewRoute(playlist.id)
                                                             )
                                                         }
@@ -478,7 +479,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                                                         },
                                                         options = null,
                                                         onClick = {
-                                                            context.navController.navigate(
+                                                            context.navController.navigateSafe(
                                                                 GenreViewRoute(genre.name)
                                                             )
                                                         }

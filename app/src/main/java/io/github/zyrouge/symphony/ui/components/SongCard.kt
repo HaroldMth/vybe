@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.components
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -323,7 +324,7 @@ fun SongDropdownMenu(
                 },
                 onClick = {
                     onDismissRequest()
-                    context.navController.navigate(ArtistViewRoute(artistName))
+                    context.navController.navigateSafe(ArtistViewRoute(artistName))
                 }
             )
         }
@@ -337,7 +338,7 @@ fun SongDropdownMenu(
                 },
                 onClick = {
                     onDismissRequest()
-                    context.navController.navigate(AlbumArtistViewRoute(albumArtist))
+                    context.navController.navigateSafe(AlbumArtistViewRoute(albumArtist))
                 }
             )
         }
@@ -351,7 +352,7 @@ fun SongDropdownMenu(
                 },
                 onClick = {
                     onDismissRequest()
-                    context.navController.navigate(AlbumViewRoute(albumId))
+                    context.navController.navigateSafe(AlbumViewRoute(albumId))
                 }
             )
         }

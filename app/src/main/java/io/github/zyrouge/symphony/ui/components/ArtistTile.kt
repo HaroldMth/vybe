@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.components
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
@@ -44,7 +45,7 @@ fun ArtistTile(context: ViewContext, artist: Artist) {
             context.symphony.radio.shorty.playQueue(artist.getSortedSongIds(context.symphony))
         },
         onClick = {
-            context.navController.navigate(ArtistViewRoute(artist.name))
+            context.navController.navigateSafe(ArtistViewRoute(artist.name))
         }
     )
 }

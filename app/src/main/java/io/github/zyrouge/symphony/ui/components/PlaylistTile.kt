@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.components
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -62,7 +63,7 @@ fun PlaylistTile(context: ViewContext, playlist: Playlist) {
             .wrapContentHeight(),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         onClick = {
-            context.navController.navigate(PlaylistViewRoute(playlist.id))
+            context.navController.navigateSafe(PlaylistViewRoute(playlist.id))
         }
     ) {
         Box(modifier = Modifier.padding(12.dp)) {

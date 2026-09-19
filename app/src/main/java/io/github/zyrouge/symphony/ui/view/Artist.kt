@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.view
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -277,7 +278,7 @@ fun ArtistView(context: ViewContext, artistName: String) {
                                         Column(
                                             modifier = Modifier
                                                 .width(120.dp)
-                                                .clickable { context.navController.navigate(AlbumViewRoute(albumId)) },
+                                                .clickable { context.navController.navigateSafe(AlbumViewRoute(albumId)) },
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                         ) {
                                             AsyncImage(
@@ -357,7 +358,7 @@ fun ArtistView(context: ViewContext, artistName: String) {
                                     options = { expanded, onDismissRequest ->
                                         AlbumDropdownMenu(context, album, expanded = expanded, onDismissRequest = onDismissRequest)
                                     },
-                                    onClick = { context.navController.navigate(AlbumViewRoute(albumId)) },
+                                    onClick = { context.navController.navigateSafe(AlbumViewRoute(albumId)) },
                                 )
                             }
                         }
@@ -387,7 +388,7 @@ fun ArtistView(context: ViewContext, artistName: String) {
                                         modifier = Modifier
                                             .width(90.dp)
                                             .clickable {
-                                                context.navController.navigate(ArtistViewRoute(relatedName))
+                                                context.navController.navigateSafe(ArtistViewRoute(relatedName))
                                             },
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                     ) {

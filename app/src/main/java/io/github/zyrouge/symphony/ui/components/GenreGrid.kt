@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.components
 
+import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -143,7 +144,7 @@ fun GenreGrid(
                                     ),
                                 colors = GenreTile.cardColors(i),
                                 onClick = {
-                                    context.navController.navigate(GenreViewRoute(genre.name))
+                                    context.navController.navigateSafe(GenreViewRoute(genre.name))
                                 }
                             ) {
                                 Box(
