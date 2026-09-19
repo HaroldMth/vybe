@@ -577,8 +577,8 @@ private fun SuggestedArtists(
 ) {
     val artists by remember(artistNames, asAlbumArtists) {
         derivedStateOf {
-            if (asAlbumArtists) context.symphony.groove.albumArtist.get(artistNames)
-            else context.symphony.groove.artist.get(artistNames)
+            if (asAlbumArtists) context.symphony.groove.albumArtist.get(artistNames).map { it.name to it.createArtworkImageRequest(context.symphony).build() }
+            else context.symphony.groove.artist.get(artistNames).map { it.name to it.createArtworkImageRequest(context.symphony).build() }
         }
     }
 
@@ -593,21 +593,21 @@ private fun SuggestedArtists(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Spacer(modifier = Modifier.width(6.dp))
-            artists.forEach { artist ->
+            artists.forEach { (artistName, artistImage) ->
                 Column(
                     modifier = Modifier
                         .width(88.dp)
                         .clickable {
                             if (asAlbumArtists) {
-                                context.navController.navigate(AlbumArtistViewRoute(artist.name))
+                                context.navController.navigate(AlbumArtistViewRoute(artistName))
                             } else {
-                                context.navController.navigate(ArtistViewRoute(artist.name))
+                                context.navController.navigate(ArtistViewRoute(artistName))
                             }
                         },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     AsyncImage(
-                        artist.createArtworkImageRequest(context.symphony).build(),
+                        artistImage,
                         null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -616,7 +616,7 @@ private fun SuggestedArtists(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        artist.name,
+                        artistName,
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

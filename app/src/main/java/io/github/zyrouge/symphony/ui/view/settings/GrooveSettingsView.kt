@@ -106,7 +106,7 @@ fun GrooveSettingsView(context: ViewContext, route: GrooveSettingsViewRoute) {
                         title = {
                             Text("Vybe API Base URL")
                         },
-                        value = apiBaseUrl ?: "http://192.168.0.142:4000/api",
+                        value = apiBaseUrl ?: "http://192.168.8.10:4000/api",
                         onReset = {
                             context.symphony.settings.apiBaseUrl.setValue(null)
                         },

@@ -29,7 +29,7 @@ class VybeApiClient(private val symphony: Symphony) {
         if (!configured.isNullOrEmpty()) {
             return configured
         }
-        return "http://192.168.0.142:4000/api"
+        return "http://192.168.8.10:4000/api"
     }
 
     suspend inline fun <reified T> fetch(endpoint: String): T? = withContext(Dispatchers.IO) {
