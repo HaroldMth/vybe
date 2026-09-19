@@ -1,15 +1,16 @@
 package io.github.zyrouge.symphony.ui.view.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,14 +25,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedButton
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -45,23 +42,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import io.github.zyrouge.symphony.services.api.VybeHomeData
+import io.github.zyrouge.symphony.services.groove.Song
 import io.github.zyrouge.symphony.services.groove.repositories.PlaylistRepository
 import io.github.zyrouge.symphony.services.radio.Radio
 import io.github.zyrouge.symphony.ui.components.IconTextBody
 import io.github.zyrouge.symphony.ui.components.PlaylistTile
+import io.github.zyrouge.symphony.ui.components.PulsingBarsLoader
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
+import io.github.zyrouge.symphony.ui.theme.ThemeColors
 import io.github.zyrouge.symphony.ui.view.AlbumArtistViewRoute
 import io.github.zyrouge.symphony.ui.view.AlbumViewRoute
 import io.github.zyrouge.symphony.ui.view.ArtistViewRoute
 import io.github.zyrouge.symphony.ui.view.GenreViewRoute
+import java.util.Calendar
 
 enum class ForYou(val label: (context: ViewContext) -> String) {
     Albums(label = { it.symphony.t.SuggestedAlbums }),
@@ -69,6 +72,18 @@ enum class ForYou(val label: (context: ViewContext) -> String) {
     AlbumArtists(label = { it.symphony.t.SuggestedAlbumArtists })
 }
 
+/**
+ * Home / For You.
+ *
+ * Design concept: one hero moment (today's top track, full-bleed, played with
+ * one tap) followed by content rails, each with a card treatment that fits
+ * what it's showing rather than one repeated square-grid pattern — trending
+ * songs are numbered (they're a real ranking), artists and album artists are
+ * round (they're people), genres are solid color chips pulled from the app's
+ * own accent palette (genre reads as mood, mood reads as color), and albums
+ * stay square (album art). The screen keeps only one loud element — the hero
+ * — and stays quiet everywhere else.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ForYouView(context: ViewContext) {
@@ -100,146 +115,48 @@ fun ForYouView(context: ViewContext) {
     val trendingSongIds = remember(homeData, songIds) {
         homeData?.trending?.map { "vybe_${it.id}" } ?: songIds.take(12)
     }
+    val heroSong = remember(trendingSongIds) {
+        trendingSongIds.firstOrNull()?.let { context.symphony.groove.song.get(it) }
+    }
 
     when {
-        homeLoading && trendingSongIds.isEmpty() && songIds.isEmpty() -> SixGridLoading()
+        homeLoading && trendingSongIds.isEmpty() && songIds.isEmpty() -> RailLoading()
         trendingSongIds.isNotEmpty() || songIds.isNotEmpty() -> {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Row(modifier = Modifier.padding(20.dp, 0.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        ForYouButton(
-                            icon = Icons.Filled.PlayArrow,
-                            text = { Text(context.symphony.t.PlayAll) },
-                            enabled = !songsIsUpdating && trendingSongIds.isNotEmpty(),
-                            onClick = {
-                                context.symphony.radio.shorty.playQueue(trendingSongIds)
-                            },
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(modifier = Modifier.weight(1f)) {
-                        ForYouButton(
-                            icon = Icons.Filled.Shuffle,
-                            text = { Text(context.symphony.t.ShufflePlay) },
-                            enabled = !songsIsUpdating && trendingSongIds.isNotEmpty(),
-                            onClick = {
-                                context.symphony.radio.shorty.playQueue(
-                                    trendingSongIds,
-                                    shuffle = true,
-                                )
-                            }
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(20.dp))
-                SideHeading { Text(context.symphony.t.RecentlyAddedSongs) }
-                Spacer(modifier = Modifier.height(12.dp))
-                when {
-                    homeLoading -> SixGridLoading()
-                    trendingSongIds.isEmpty() -> SixGridEmpty(context)
-                    else -> BoxWithConstraints {
-                        val tileWidth = this@BoxWithConstraints.maxWidth.times(0.7f)
-                        Row(
-                            modifier = Modifier.horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Spacer(modifier = Modifier.width(12.dp))
-                            trendingSongIds.take(8).forEachIndexed { i, songId ->
-                                val tileHeight = 96.dp
-                                val backgroundColor = MaterialTheme.colorScheme.surface
-                                val song = context.symphony.groove.song.get(songId)
-                                    ?: return@forEachIndexed
+                Spacer(modifier = Modifier.height(8.dp))
+                Greeting(context)
+                Spacer(modifier = Modifier.height(16.dp))
 
-                                ElevatedCard(
-                                    modifier = Modifier
-                                        .width(tileWidth)
-                                        .height(tileHeight),
-                                    onClick = {
-                                        context.symphony.radio.shorty.playQueue(
-                                            trendingSongIds,
-                                            options = Radio.PlayOptions(index = i),
-                                        )
-                                    }
-                                ) {
-                                    Box {
-                                        AsyncImage(
-                                            song.createArtworkImageRequest(context.symphony)
-                                                .build(),
-                                            null,
-                                            contentScale = ContentScale.FillWidth,
-                                            modifier = Modifier.matchParentSize(),
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .matchParentSize()
-                                                .background(
-                                                    Brush.horizontalGradient(
-                                                        colors = listOf(
-                                                            backgroundColor.copy(alpha = 0.2f),
-                                                            backgroundColor.copy(alpha = 0.7f),
-                                                            backgroundColor.copy(alpha = 0.8f),
-                                                        ),
-                                                    )
-                                                )
-                                        )
-                                        Row(modifier = Modifier.padding(8.dp)) {
-                                            Box {
-                                                AsyncImage(
-                                                    song.createArtworkImageRequest(context.symphony)
-                                                        .build(),
-                                                    null,
-                                                    contentScale = ContentScale.Crop,
-                                                    modifier = Modifier
-                                                        .aspectRatio(1f)
-                                                        .fillMaxHeight()
-                                                        .clip(RoundedCornerShape(4.dp)),
-                                                )
-                                                Box(
-                                                    modifier = Modifier.matchParentSize(),
-                                                    contentAlignment = Alignment.Center,
-                                                ) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .background(
-                                                                backgroundColor.copy(alpha = 0.25f),
-                                                                CircleShape,
-                                                            )
-                                                            .padding(1.dp)
-                                                    ) {
-                                                        Icon(
-                                                            Icons.Filled.PlayArrow,
-                                                            null,
-                                                            modifier = Modifier.size(20.dp),
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            Spacer(modifier = Modifier.width(16.dp))
-                                            Column(
-                                                modifier = Modifier.fillMaxSize(),
-                                                verticalArrangement = Arrangement.Center,
-                                            ) {
-                                                Text(
-                                                    song.title,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    maxLines = 2,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                )
-                                                if (song.artists.isNotEmpty()) {
-                                                    Text(
-                                                        song.artists.joinToString(),
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        maxLines = 2,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                        }
+                if (heroSong != null) {
+                    HeroCard(
+                        context = context,
+                        song = heroSong,
+                        enabled = !songsIsUpdating,
+                        onPlay = { context.symphony.radio.shorty.playQueue(trendingSongIds) },
+                        onShuffle = {
+                            context.symphony.radio.shorty.playQueue(trendingSongIds, shuffle = true)
+                        },
+                    )
+                    Spacer(modifier = Modifier.height(28.dp))
+                }
+
+                when {
+                    homeLoading -> {
+                        SectionHeading(context.symphony.t.RecentlyAddedSongs)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        RailLoading()
+                    }
+
+                    trendingSongIds.isEmpty() -> {
+                        SectionHeading(context.symphony.t.RecentlyAddedSongs)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        RailEmpty(context)
+                    }
+
+                    else -> {
+                        SectionHeading(context.symphony.t.RecentlyAddedSongs)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TrendingRail(context, trendingSongIds)
                     }
                 }
 
@@ -248,7 +165,7 @@ fun ForYouView(context: ViewContext) {
                     SuggestedAlbums(
                         context,
                         isLoading = homeLoading,
-                        albumIds = newReleaseIds.take(6),
+                        albumIds = newReleaseIds.take(8),
                     )
                 }
 
@@ -258,59 +175,50 @@ fun ForYouView(context: ViewContext) {
                         context,
                         label = context.symphony.t.SuggestedArtists,
                         isLoading = homeLoading,
-                        artistNames = homeArtistNames.take(6),
+                        artistNames = homeArtistNames.take(8),
                     )
                 }
 
                 val homePlaylists = homeData?.playlists.orEmpty()
                 if (homePlaylists.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    SideHeading { Text(context.symphony.t.Playlists) }
+                    Spacer(modifier = Modifier.height(28.dp))
+                    SectionHeading(context.symphony.t.Playlists)
                     Spacer(modifier = Modifier.height(12.dp))
-                    StatedSixGrid(
-                        context,
-                        isLoading = homeLoading,
-                        items = homePlaylists.take(6).map {
-                            PlaylistRepository.remoteId(it.id)
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        homePlaylists.take(8).forEach {
+                            val playlistId = PlaylistRepository.remoteId(it.id)
+                            context.symphony.groove.playlist.get(playlistId)?.let { playlist ->
+                                Box(modifier = Modifier.width(140.dp)) {
+                                    PlaylistTile(context, playlist)
+                                }
+                            }
                         }
-                    ) { playlistId ->
-                        context.symphony.groove.playlist.get(playlistId)?.let { playlist ->
-                            PlaylistTile(context, playlist)
-                        }
+                        Spacer(modifier = Modifier.width(4.dp))
                     }
                 }
 
-                // NOTE: previously used GenreGrid(context, homeGenres.take(8)) here.
-                // GenreGrid wraps a LazyVerticalGrid internally (via ResponsiveGrid),
-                // and nesting a lazy grid inside this screen's outer
-                // Column(Modifier.verticalScroll(...)) crashes immediately with:
-                // "Vertically scrollable component was measured with an infinity
-                // maximum height constraints". Using a small non-lazy grid instead,
-                // same pattern as SuggestedAlbums/SuggestedArtists above.
                 val homeGenres = homeData?.genres?.map { it.name }.orEmpty()
                 if (homeGenres.isNotEmpty()) {
                     SuggestedGenres(
                         context,
                         isLoading = homeLoading,
-                        genreNames = homeGenres.take(6),
+                        genreNames = homeGenres.take(10),
                     )
                 }
 
                 val contents by context.symphony.settings.forYouContents.flow.collectAsState()
                 val randomAlbums by remember(albumsIsUpdating, albumIds) {
-                    derivedStateOf {
-                        albumIds.shuffled().take(6)
-                    }
+                    derivedStateOf { albumIds.shuffled().take(8) }
                 }
                 val randomArtists by remember(artistsIsUpdating, artistNames) {
-                    derivedStateOf {
-                        artistNames.shuffled().take(6)
-                    }
+                    derivedStateOf { artistNames.shuffled().take(8) }
                 }
                 val randomAlbumArtists by remember(albumArtistsIsUpdating, albumArtistNames) {
-                    derivedStateOf {
-                        albumArtistNames.shuffled().take(6)
-                    }
+                    derivedStateOf { albumArtistNames.shuffled().take(8) }
                 }
                 contents.forEach {
                     when (it) {
@@ -327,66 +235,242 @@ fun ForYouView(context: ViewContext) {
                             artistNames = randomArtists,
                         )
 
-                        ForYou.AlbumArtists -> SuggestedAlbumArtists(
+                        ForYou.AlbumArtists -> SuggestedArtists(
                             context,
                             label = context.symphony.t.SuggestedAlbumArtists,
                             isLoading = albumArtistsIsUpdating,
-                            albumArtistNames = randomAlbumArtists,
+                            artistNames = randomAlbumArtists,
+                            asAlbumArtists = true,
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
 
         else -> IconTextBody(
-            icon = { modifier ->
-                Icon(
-                    Icons.Filled.MusicNote,
-                    null,
-                    modifier = modifier,
-                )
-            },
+            icon = { modifier -> Icon(Icons.Filled.MusicNote, null, modifier = modifier) },
             content = { Text(context.symphony.t.DamnThisIsSoEmpty) },
         )
     }
 }
 
 @Composable
-private fun SideHeading(text: @Composable () -> Unit) {
-    Box(modifier = Modifier.padding(20.dp, 0.dp)) {
-        ProvideTextStyle(MaterialTheme.typography.titleLarge) {
-            text()
-        }
+private fun Greeting(context: ViewContext) {
+    val hour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
+    val greeting = when {
+        hour < 5 -> "Still up?"
+        hour < 12 -> "Good morning"
+        hour < 17 -> "Good afternoon"
+        hour < 21 -> "Good evening"
+        else -> "Late night listening"
     }
+    Text(
+        greeting,
+        style = MaterialTheme.typography.headlineMedium.copy(
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.5).sp,
+        ),
+        modifier = Modifier.padding(horizontal = 20.dp),
+    )
 }
 
+/**
+ * The one loud element on the page: today's top track, full-bleed, one tap
+ * to play. Everything else on the screen is deliberately quieter than this.
+ */
 @Composable
-private fun ForYouButton(
-    icon: ImageVector,
-    text: @Composable () -> Unit,
+private fun HeroCard(
+    context: ViewContext,
+    song: Song,
     enabled: Boolean,
-    onClick: () -> Unit,
+    onPlay: () -> Unit,
+    onShuffle: () -> Unit,
 ) {
-    ElevatedButton(
-        modifier = Modifier.fillMaxWidth(),
-        enabled = enabled,
-        onClick = onClick,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                icon,
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .clickable(enabled = enabled) { onPlay() }
+        ) {
+            AsyncImage(
+                song.createArtworkImageRequest(context.symphony).build(),
                 null,
-                modifier = Modifier.size(16.dp)
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            text()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.05f),
+                                Color.Black.copy(alpha = 0.75f),
+                            ),
+                        )
+                    )
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(20.dp)
+                    .fillMaxWidth(),
+            ) {
+                Text(
+                    "Playing now",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        color = Color.White.copy(alpha = 0.75f),
+                    ),
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    song.title,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (song.artists.isNotEmpty()) {
+                    Text(
+                        song.artists.joinToString(),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = Color.White.copy(alpha = 0.8f),
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(20.dp)
+                    .size(56.dp)
+                    .clickable(enabled = enabled) { onPlay() },
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Filled.PlayArrow,
+                        null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(28.dp),
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier
+                .clickable(enabled = enabled) { onShuffle() }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Filled.Shuffle,
+                null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                context.symphony.t.ShufflePlay,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                ),
+            )
         }
     }
 }
 
 @Composable
-private fun SixGridLoading() {
+private fun SectionHeading(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+        modifier = Modifier.padding(horizontal = 20.dp),
+    )
+}
+
+/** Trending songs are a real ranking, so a rank badge is earned here. */
+@Composable
+private fun TrendingRail(context: ViewContext, songIds: List<String>) {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Spacer(modifier = Modifier.width(6.dp))
+        songIds.take(10).forEachIndexed { index, songId ->
+            val song = context.symphony.groove.song.get(songId) ?: return@forEachIndexed
+            Column(
+                modifier = Modifier
+                    .width(128.dp)
+                    .clickable {
+                        context.symphony.radio.shorty.playQueue(
+                            songIds,
+                            options = Radio.PlayOptions(index = index),
+                        )
+                    }
+            ) {
+                Box {
+                    AsyncImage(
+                        song.createArtworkImageRequest(context.symphony).build(),
+                        null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(14.dp)),
+                    )
+                    Surface(
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .size(24.dp),
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.55f),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                (index + 1).toString(),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                ),
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    song.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (song.artists.isNotEmpty()) {
+                    Text(
+                        song.artists.joinToString(),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.width(6.dp))
+    }
+}
+
+@Composable
+private fun RailLoading() {
     Box(
         modifier = Modifier
             .height((LocalConfiguration.current.screenHeightDp * 0.2f).dp)
@@ -394,13 +478,13 @@ private fun SixGridLoading() {
             .padding(0.dp, 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        io.github.zyrouge.symphony.ui.components.PulsingBarsLoader()
+        PulsingBarsLoader()
     }
 }
 
 @Composable
-private fun SixGridEmpty(context: ViewContext) {
-    val height = (LocalConfiguration.current.screenHeightDp * 0.15f).dp
+private fun RailEmpty(context: ViewContext) {
+    val height = (LocalConfiguration.current.screenHeightDp * 0.12f).dp
     Box(
         modifier = Modifier
             .height(height)
@@ -418,54 +502,27 @@ private fun SixGridEmpty(context: ViewContext) {
 }
 
 @Composable
-private fun <T> StatedSixGrid(
+private fun <T> StatedRail(
     context: ViewContext,
     isLoading: Boolean,
     items: List<T>,
     content: @Composable (T) -> Unit,
 ) {
     when {
-        isLoading -> SixGridLoading()
-        items.isEmpty() -> SixGridEmpty(context)
-        else -> SixGrid(items) {
-            content(it)
-        }
-    }
-}
-
-@Composable
-private fun <T> SixGrid(
-    items: List<T>,
-    content: @Composable (T) -> Unit,
-) {
-    val gap = 12.dp
-    Row(
-        modifier = Modifier.padding(20.dp, 0.dp),
-        horizontalArrangement = Arrangement.spacedBy(gap),
-    ) {
-        (0..2).forEach { i ->
-            val item = items.getOrNull(i)
-            Box(modifier = Modifier.weight(1f)) {
-                item?.let { content(it) }
-            }
-        }
-    }
-    if (items.size > 3) {
-        Spacer(modifier = Modifier.height(gap))
-        Row(
-            modifier = Modifier.padding(20.dp, 0.dp),
-            horizontalArrangement = Arrangement.spacedBy(gap),
+        isLoading -> RailLoading()
+        items.isEmpty() -> RailEmpty(context)
+        else -> Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            (3..5).forEach { i ->
-                val item = items.getOrNull(i)
-                Box(modifier = Modifier.weight(1f)) {
-                    item?.let { content(it) }
-                }
-            }
+            Spacer(modifier = Modifier.width(6.dp))
+            items.forEach { content(it) }
+            Spacer(modifier = Modifier.width(6.dp))
         }
     }
 }
 
+/** Album art is inherently square — this is the one rail that stays square. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SuggestedAlbums(
@@ -474,35 +531,41 @@ private fun SuggestedAlbums(
     albumIds: List<String>,
 ) {
     val albums by remember(albumIds) {
-        derivedStateOf {
-            context.symphony.groove.album.get(albumIds)
-        }
+        derivedStateOf { context.symphony.groove.album.get(albumIds) }
     }
 
-    Spacer(modifier = Modifier.height(24.dp))
-    SideHeading {
-        Text(context.symphony.t.SuggestedAlbums)
-    }
+    Spacer(modifier = Modifier.height(28.dp))
+    SectionHeading(context.symphony.t.SuggestedAlbums)
     Spacer(modifier = Modifier.height(12.dp))
-    StatedSixGrid(context, isLoading, albums) { album ->
-        Card(
-            onClick = {
-                context.navController.navigate(AlbumViewRoute(album.id))
-            }
+    StatedRail(context, isLoading, albums) { album ->
+        Column(
+            modifier = Modifier
+                .width(128.dp)
+                .clickable {
+                    context.navController.navigate(AlbumViewRoute(album.id))
+                }
         ) {
             AsyncImage(
                 album.createArtworkImageRequest(context.symphony).build(),
                 null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .aspectRatio(1f)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(4.dp)),
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(8.dp)),
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                album.name,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
 }
 
+/** People get round avatars — artists and album artists both use this. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SuggestedArtists(
@@ -510,83 +573,64 @@ private fun SuggestedArtists(
     label: String,
     isLoading: Boolean,
     artistNames: List<String>,
+    asAlbumArtists: Boolean = false,
 ) {
-    val artists by remember(artistNames) {
+    val artists by remember(artistNames, asAlbumArtists) {
         derivedStateOf {
-            context.symphony.groove.artist.get(artistNames)
+            if (asAlbumArtists) context.symphony.groove.albumArtist.get(artistNames)
+            else context.symphony.groove.artist.get(artistNames)
         }
     }
 
-    Spacer(modifier = Modifier.height(24.dp))
-    SideHeading {
-        Text(label)
-    }
+    Spacer(modifier = Modifier.height(28.dp))
+    SectionHeading(label)
     Spacer(modifier = Modifier.height(12.dp))
-    StatedSixGrid(context, isLoading, artists) { artist ->
-        Card(
-            onClick = {
-                context.navController.navigate(ArtistViewRoute(artist.name))
-            }
+    when {
+        isLoading -> RailLoading()
+        artists.isEmpty() -> RailEmpty(context)
+        else -> Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            AsyncImage(
-                artist.createArtworkImageRequest(context.symphony).build(),
-                null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .aspectRatio(1f)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(4.dp)),
-            )
+            Spacer(modifier = Modifier.width(6.dp))
+            artists.forEach { artist ->
+                Column(
+                    modifier = Modifier
+                        .width(88.dp)
+                        .clickable {
+                            if (asAlbumArtists) {
+                                context.navController.navigate(AlbumArtistViewRoute(artist.name))
+                            } else {
+                                context.navController.navigate(ArtistViewRoute(artist.name))
+                            }
+                        },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    AsyncImage(
+                        artist.createArtworkImageRequest(context.symphony).build(),
+                        null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        artist.name,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(6.dp))
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SuggestedAlbumArtists(
-    context: ViewContext,
-    label: String,
-    isLoading: Boolean,
-    albumArtistNames: List<String>,
-) {
-    val albumArtists by remember(albumArtistNames) {
-        derivedStateOf {
-            context.symphony.groove.albumArtist.get(albumArtistNames)
-        }
-    }
-
-    Spacer(modifier = Modifier.height(24.dp))
-    SideHeading {
-        Text(label)
-    }
-    Spacer(modifier = Modifier.height(12.dp))
-    StatedSixGrid(context, isLoading, albumArtists) { albumArtist ->
-        Card(
-            onClick = {
-                context.navController.navigate(AlbumArtistViewRoute(albumArtist.name))
-            }
-        ) {
-            AsyncImage(
-                albumArtist.createArtworkImageRequest(context.symphony).build(),
-                null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .aspectRatio(1f)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(4.dp)),
-            )
-        }
-    }
-}
-
-// Lightweight, non-lazy genre preview grid for the For You screen.
-// Deliberately does NOT reuse GenreGrid (ui/components/GenreGrid.kt), which wraps
-// a LazyVerticalGrid via ResponsiveGrid — that crashes when nested inside this
-// screen's Column(Modifier.verticalScroll(...)) because a lazy grid needs a
-// bounded height to measure against and the scrollable Column gives it infinity.
-// GenreGrid is fine as-is for its own full-page/dedicated-route usage; just don't
-// call it from inside another scrollable container.
-@OptIn(ExperimentalMaterial3Api::class)
+/** Genre reads as mood, mood reads as color — reuses the app's own accent palette. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun SuggestedGenres(
     context: ViewContext,
@@ -594,37 +638,39 @@ private fun SuggestedGenres(
     genreNames: List<String>,
 ) {
     val genres by remember(genreNames) {
-        derivedStateOf {
-            genreNames.mapNotNull { context.symphony.groove.genre.get(it) }
-        }
+        derivedStateOf { genreNames.mapNotNull { context.symphony.groove.genre.get(it) } }
     }
+    val palette = remember { ThemeColors.PrimaryColorsMap.values.toList() }
 
-    Spacer(modifier = Modifier.height(24.dp))
-    SideHeading {
-        Text(context.symphony.t.Genres)
-    }
+    Spacer(modifier = Modifier.height(28.dp))
+    SectionHeading(context.symphony.t.Genres)
     Spacer(modifier = Modifier.height(12.dp))
-    StatedSixGrid(context, isLoading, genres) { genre ->
-        Card(
-            onClick = {
-                context.navController.navigate(GenreViewRoute(genre.name))
-            }
+    when {
+        isLoading -> RailLoading()
+        genres.isEmpty() -> RailEmpty(context)
+        else -> FlowRow(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .aspectRatio(1f)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(4.dp))
-                    .padding(8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    genre.name,
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            genres.forEach { genre ->
+                val color = palette[Math.floorMod(genre.name.hashCode(), palette.size)]
+                Surface(
+                    modifier = Modifier.clickable {
+                        context.navController.navigate(GenreViewRoute(genre.name))
+                    },
+                    shape = RoundedCornerShape(50),
+                    color = color.copy(alpha = 0.16f),
+                ) {
+                    Text(
+                        genre.name,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = color,
+                            fontWeight = FontWeight.Medium,
+                        ),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    )
+                }
             }
         }
     }
