@@ -67,6 +67,17 @@ class VybeCatalog(private val symphony: Symphony) {
         data.artists.forEach { ingestArtistStub(it) }
         data.playlists.forEach { ingestPlaylistStub(it) }
         data.genres.forEach { ingestGenreStub(it) }
+        data.trendingAlbums.forEach { ingestAlbumStub(it) }
+        data.editorsPicks.forEach {
+            if (it.isPlaylist) ingestPlaylistStub(it.toPlaylist()) else ingestAlbumStub(it.toAlbum())
+        }
+        data.topInCountry?.let { ingestTracks(it.songs) }
+        data.topAlbumsInCountry?.albums?.forEach { ingestAlbumStub(it) }
+        data.spotlight.forEach { spot ->
+            spot.genre?.let { ingestGenreStub(it) }
+            ingestTracks(spot.songs)
+            spot.artists.forEach { ingestArtistStub(it) }
+        }
     }
 
     fun ingestCharts(data: VybeChartsData) {

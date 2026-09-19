@@ -7,8 +7,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -18,19 +16,24 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,19 +56,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import io.github.zyrouge.symphony.services.api.VybeHomeData
+import io.github.zyrouge.symphony.services.home.FeedSection
 import io.github.zyrouge.symphony.services.groove.Song
-import io.github.zyrouge.symphony.services.groove.repositories.PlaylistRepository
-import io.github.zyrouge.symphony.services.radio.Radio
 import io.github.zyrouge.symphony.ui.components.IconTextBody
-import io.github.zyrouge.symphony.ui.components.PlaylistTile
 import io.github.zyrouge.symphony.ui.components.PulsingBarsLoader
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
-import io.github.zyrouge.symphony.ui.theme.ThemeColors
 import io.github.zyrouge.symphony.ui.view.AlbumArtistViewRoute
 import io.github.zyrouge.symphony.ui.view.AlbumViewRoute
 import io.github.zyrouge.symphony.ui.view.ArtistViewRoute
-import io.github.zyrouge.symphony.ui.view.GenreViewRoute
 import java.util.Calendar
 
 enum class ForYou(val label: (context: ViewContext) -> String) {
@@ -88,171 +87,182 @@ enum class ForYou(val label: (context: ViewContext) -> String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ForYouView(context: ViewContext) {
+    val feed = context.symphony.homeFeed
     val songsIsUpdating by context.symphony.groove.song.isUpdating.collectAsState()
     val songIds by context.symphony.groove.song.all.collectAsState()
+    val sections by feed.sections.collectAsState()
+    val refreshing by feed.isRefreshing.collectAsState()
+    val loadingMore by feed.isLoadingMore.collectAsState()
+    val hasLoaded by feed.hasLoaded.collectAsState()
+    val heroId by feed.heroSongId.collectAsState()
+    val trendingIds by feed.trendingSongIds.collectAsState()
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(Unit) {
+        feed.start()
+    }
+
+    // Endless feed: whenever the last few items are on screen, ask for more sections.
+    LaunchedEffect(listState, sections.size, refreshing) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 3
+        }.collect { nearEnd ->
+            if (nearEnd) {
+                feed.loadMore()
+            }
+        }
+    }
+
+    // Local library songs are the fallback when the API is unreachable.
+    val localFallback = remember(songIds) { songIds.take(12) }
+    val heroSong = remember(heroId, localFallback) {
+        (heroId ?: localFallback.firstOrNull())?.let { context.symphony.groove.song.get(it) }
+    }
+    val heroQueue = if (trendingIds.isNotEmpty()) trendingIds else localFallback
+
+    when {
+        !hasLoaded && sections.isEmpty() && heroSong == null -> RailLoading()
+
+        hasLoaded && sections.isEmpty() && heroSong == null -> IconTextBody(
+            icon = { modifier -> Icon(Icons.Filled.MusicNote, null, modifier = modifier) },
+            content = { Text(context.symphony.t.DamnThisIsSoEmpty) },
+        )
+
+        else -> PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = { feed.refresh() },
+        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                item(key = "greeting") {
+                    Column {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        GreetingRow(context, onRefresh = { feed.refresh() })
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                }
+
+                if (heroSong != null) {
+                    item(key = "hero") {
+                        HeroCard(
+                            context = context,
+                            song = heroSong,
+                            enabled = !songsIsUpdating,
+                            // Playing a single song starts an endless queue of related songs.
+                            onPlay = { context.symphony.radio.shorty.playQueue(heroSong.id) },
+                            onShuffle = {
+                                context.symphony.radio.shorty.playQueue(heroQueue, shuffle = true)
+                            },
+                        )
+                    }
+                }
+
+                itemsIndexed(sections, key = { index, section -> "$index-${section.key}" }) { index, section ->
+                    Column {
+                        FeedSectionView(context, section)
+                        if (index == LIBRARY_RAILS_AFTER) {
+                            LibraryRails(context)
+                        }
+                    }
+                }
+
+                if (sections.isEmpty() && hasLoaded && localFallback.isNotEmpty()) {
+                    item(key = "local") {
+                        FeedSectionView(
+                            context,
+                            FeedSection.Songs(
+                                key = "local",
+                                title = "From your library",
+                                songIds = localFallback,
+                                style = FeedSection.Songs.Style.Cards,
+                            ),
+                        )
+                    }
+                }
+
+                item(key = "footer") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(96.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (loadingMore || (refreshing && sections.isEmpty())) {
+                            PulsingBarsLoader()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The user's own library suggestions (configurable in settings), shown once in the feed. */
+@Composable
+private fun LibraryRails(context: ViewContext) {
     val albumIds by context.symphony.groove.album.all.collectAsState()
     val artistNames by context.symphony.groove.artist.all.collectAsState()
     val albumArtistNames by context.symphony.groove.albumArtist.all.collectAsState()
     val albumsIsUpdating by context.symphony.groove.album.isUpdating.collectAsState()
     val artistsIsUpdating by context.symphony.groove.artist.isUpdating.collectAsState()
     val albumArtistsIsUpdating by context.symphony.groove.albumArtist.isUpdating.collectAsState()
-    var homeData by remember { mutableStateOf<VybeHomeData?>(null) }
-    var homeLoading by remember { mutableStateOf(true) }
-
-    LaunchedEffect(Unit) {
-        try {
-            val data = context.symphony.vybeApi.getHome()
-            if (data != null) {
-                context.symphony.groove.catalog.ingestHome(data)
-                homeData = data
-            }
-        } catch (err: Exception) {
-            io.github.zyrouge.symphony.utils.Logger.error("ForYouView", "home fetch failed", err)
-        } finally {
-            homeLoading = false
-        }
+    val contents by context.symphony.settings.forYouContents.flow.collectAsState()
+    val randomAlbums by remember(albumsIsUpdating, albumIds) {
+        derivedStateOf { albumIds.shuffled().take(8) }
     }
-
-    val trendingSongIds = remember(homeData, songIds) {
-        homeData?.trending?.map { "vybe_${it.id}" } ?: songIds.take(12)
+    val randomArtists by remember(artistsIsUpdating, artistNames) {
+        derivedStateOf { artistNames.shuffled().take(8) }
     }
-    val heroSong = remember(trendingSongIds) {
-        trendingSongIds.firstOrNull()?.let { context.symphony.groove.song.get(it) }
+    val randomAlbumArtists by remember(albumArtistsIsUpdating, albumArtistNames) {
+        derivedStateOf { albumArtistNames.shuffled().take(8) }
     }
+    Column {
+        contents.forEach {
+            when (it) {
+                ForYou.Albums -> SuggestedAlbums(
+                    context,
+                    isLoading = albumsIsUpdating,
+                    albumIds = randomAlbums,
+                )
 
-    when {
-        homeLoading && trendingSongIds.isEmpty() && songIds.isEmpty() -> RailLoading()
-        trendingSongIds.isNotEmpty() || songIds.isNotEmpty() -> {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Greeting(context)
-                Spacer(modifier = Modifier.height(16.dp))
+                ForYou.Artists -> SuggestedArtists(
+                    context,
+                    label = context.symphony.t.SuggestedArtists,
+                    isLoading = artistsIsUpdating,
+                    artistNames = randomArtists,
+                )
 
-                if (heroSong != null) {
-                    HeroCard(
-                        context = context,
-                        song = heroSong,
-                        enabled = !songsIsUpdating,
-                        onPlay = { context.symphony.radio.shorty.playQueue(trendingSongIds) },
-                        onShuffle = {
-                            context.symphony.radio.shorty.playQueue(trendingSongIds, shuffle = true)
-                        },
-                    )
-                    Spacer(modifier = Modifier.height(28.dp))
-                }
-
-                when {
-                    homeLoading -> {
-                        SectionHeading(context.symphony.t.RecentlyAddedSongs)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        RailLoading()
-                    }
-
-                    trendingSongIds.isEmpty() -> {
-                        SectionHeading(context.symphony.t.RecentlyAddedSongs)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        RailEmpty(context)
-                    }
-
-                    else -> {
-                        SectionHeading(context.symphony.t.RecentlyAddedSongs)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        TrendingRail(context, trendingSongIds)
-                    }
-                }
-
-                val newReleaseIds = homeData?.newReleases?.map { it.id }.orEmpty()
-                if (newReleaseIds.isNotEmpty()) {
-                    SuggestedAlbums(
-                        context,
-                        isLoading = homeLoading,
-                        albumIds = newReleaseIds.take(8),
-                    )
-                }
-
-                val homeArtistNames = homeData?.artists?.map { it.name }.orEmpty()
-                if (homeArtistNames.isNotEmpty()) {
-                    SuggestedArtists(
-                        context,
-                        label = context.symphony.t.SuggestedArtists,
-                        isLoading = homeLoading,
-                        artistNames = homeArtistNames.take(8),
-                    )
-                }
-
-                val homePlaylists = homeData?.playlists.orEmpty()
-                if (homePlaylists.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(28.dp))
-                    SectionHeading(context.symphony.t.Playlists)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        homePlaylists.take(8).forEach {
-                            val playlistId = PlaylistRepository.remoteId(it.id)
-                            context.symphony.groove.playlist.get(playlistId)?.let { playlist ->
-                                Box(modifier = Modifier.width(140.dp)) {
-                                    PlaylistTile(context, playlist)
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
-                    }
-                }
-
-                val homeGenres = homeData?.genres?.map { it.name }.orEmpty()
-                if (homeGenres.isNotEmpty()) {
-                    SuggestedGenres(
-                        context,
-                        isLoading = homeLoading,
-                        genreNames = homeGenres.take(10),
-                    )
-                }
-
-                val contents by context.symphony.settings.forYouContents.flow.collectAsState()
-                val randomAlbums by remember(albumsIsUpdating, albumIds) {
-                    derivedStateOf { albumIds.shuffled().take(8) }
-                }
-                val randomArtists by remember(artistsIsUpdating, artistNames) {
-                    derivedStateOf { artistNames.shuffled().take(8) }
-                }
-                val randomAlbumArtists by remember(albumArtistsIsUpdating, albumArtistNames) {
-                    derivedStateOf { albumArtistNames.shuffled().take(8) }
-                }
-                contents.forEach {
-                    when (it) {
-                        ForYou.Albums -> SuggestedAlbums(
-                            context,
-                            isLoading = albumsIsUpdating,
-                            albumIds = randomAlbums,
-                        )
-
-                        ForYou.Artists -> SuggestedArtists(
-                            context,
-                            label = context.symphony.t.SuggestedArtists,
-                            isLoading = artistsIsUpdating,
-                            artistNames = randomArtists,
-                        )
-
-                        ForYou.AlbumArtists -> SuggestedArtists(
-                            context,
-                            label = context.symphony.t.SuggestedAlbumArtists,
-                            isLoading = albumArtistsIsUpdating,
-                            artistNames = randomAlbumArtists,
-                            asAlbumArtists = true,
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(24.dp))
+                ForYou.AlbumArtists -> SuggestedArtists(
+                    context,
+                    label = context.symphony.t.SuggestedAlbumArtists,
+                    isLoading = albumArtistsIsUpdating,
+                    artistNames = randomAlbumArtists,
+                    asAlbumArtists = true,
+                )
             }
         }
+    }
+}
 
-        else -> IconTextBody(
-            icon = { modifier -> Icon(Icons.Filled.MusicNote, null, modifier = modifier) },
-            content = { Text(context.symphony.t.DamnThisIsSoEmpty) },
-        )
+private const val LIBRARY_RAILS_AFTER = 4
+
+@Composable
+private fun GreetingRow(context: ViewContext, onRefresh: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.weight(1f)) {
+            Greeting(context)
+        }
+        IconButton(onClick = onRefresh) {
+            Icon(Icons.Filled.Refresh, null)
+        }
     }
 }
 
@@ -321,7 +331,7 @@ private fun HeroCard(
                     .fillMaxWidth(),
             ) {
                 Text(
-                    "Playing now",
+                    "Featured",
                     style = MaterialTheme.typography.labelMedium.copy(
                         color = Color.White.copy(alpha = 0.75f),
                     ),
@@ -397,74 +407,6 @@ private fun SectionHeading(text: String) {
         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
         modifier = Modifier.padding(horizontal = 20.dp),
     )
-}
-
-/** Trending songs are a real ranking, so a rank badge is earned here. */
-@Composable
-private fun TrendingRail(context: ViewContext, songIds: List<String>) {
-    Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Spacer(modifier = Modifier.width(6.dp))
-        songIds.take(10).forEachIndexed { index, songId ->
-            val song = context.symphony.groove.song.get(songId) ?: return@forEachIndexed
-            Column(
-                modifier = Modifier
-                    .width(128.dp)
-                    .clickable {
-                        context.symphony.radio.shorty.playQueue(songId)
-                    }
-            ) {
-                Box {
-                    AsyncImage(
-                        song.createArtworkImageRequest(context.symphony).build(),
-                        null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(14.dp)),
-                    )
-                    Surface(
-                        modifier = Modifier
-                            .padding(6.dp)
-                            .size(24.dp),
-                        shape = CircleShape,
-                        color = Color.Black.copy(alpha = 0.55f),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                (index + 1).toString(),
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                ),
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    song.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (song.artists.isNotEmpty()) {
-                    Text(
-                        song.artists.joinToString(),
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-        Spacer(modifier = Modifier.width(6.dp))
-    }
 }
 
 @Composable
@@ -623,53 +565,6 @@ private fun SuggestedArtists(
                 }
             }
             Spacer(modifier = Modifier.width(6.dp))
-        }
-    }
-}
-
-/** Genre reads as mood, mood reads as color — reuses the app's own accent palette. */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-private fun SuggestedGenres(
-    context: ViewContext,
-    isLoading: Boolean,
-    genreNames: List<String>,
-) {
-    val genres by remember(genreNames) {
-        derivedStateOf { genreNames.mapNotNull { context.symphony.groove.genre.get(it) } }
-    }
-    val palette = remember { ThemeColors.PrimaryColorsMap.values.toList() }
-
-    Spacer(modifier = Modifier.height(28.dp))
-    SectionHeading(context.symphony.t.Genres)
-    Spacer(modifier = Modifier.height(12.dp))
-    when {
-        isLoading -> RailLoading()
-        genres.isEmpty() -> RailEmpty(context)
-        else -> FlowRow(
-            modifier = Modifier.padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            genres.forEach { genre ->
-                val color = palette[Math.floorMod(genre.name.hashCode(), palette.size)]
-                Surface(
-                    modifier = Modifier.clickable {
-                        context.navController.navigateSafe(GenreViewRoute(genre.name))
-                    },
-                    shape = RoundedCornerShape(50),
-                    color = color.copy(alpha = 0.16f),
-                ) {
-                    Text(
-                        genre.name,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            color = color,
-                            fontWeight = FontWeight.Medium,
-                        ),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    )
-                }
-            }
         }
     }
 }

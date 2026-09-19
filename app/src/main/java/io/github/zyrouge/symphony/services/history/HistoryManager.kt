@@ -70,6 +70,6 @@ class HistoryManager(private val symphony: Symphony) {
         private const val KEY_SEARCHES = "recent_searches"
         private const val KEY_PLAYED = "recently_played"
         private const val MAX_SEARCHES = 10
-        private const val MAX_PLAYED = 20
+        private const val MAX_PLAYED = 50
     }
 }

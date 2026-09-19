@@ -5,9 +5,16 @@ import io.github.zyrouge.symphony.utils.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
 class VybeApiClient(private val symphony: Symphony) {
@@ -60,13 +67,79 @@ class VybeApiClient(private val symphony: Symphony) {
         }
     }
 
-    suspend fun getHome(): VybeHomeData? = fetch("home")
+    suspend inline fun <reified T> post(endpoint: String, body: JsonObject): T? = withContext(Dispatchers.IO) {
+        try {
+            val url = "${getBaseUrl()}/$endpoint".replace(Regex("(?<!:)/{2,}"), "/")
+            val request = Request.Builder()
+                .url(url)
+                .post(body.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Logger.error("VybeApiClient", "HTTP Error ${response.code} for $url")
+                    return@withContext null
+                }
+                val bodyString = response.body?.string() ?: return@withContext null
+                val env = json.decodeFromString<VybeResponse<T>>(bodyString)
+                if (env.success) env.data else null
+            }
+        } catch (err: Exception) {
+            Logger.error("VybeApiClient", "Post failed for $endpoint", err)
+            null
+        }
+    }
+
+    /**
+     * One-call blended For You page (POST /api/fyp). The server is stateless, so the app
+     * sends its own history: [tracks]/[artists] are Deezer ids, most recent first, and
+     * [played] are ids to hide.
+     */
+    suspend fun getFyp(
+        tracks: List<String>,
+        artists: List<String>,
+        played: List<String>,
+        country: String?,
+        limit: Int = 30,
+    ): VybeFypData? {
+        val body = buildJsonObject {
+            put("tracks", JsonArray(tracks.map { JsonPrimitive(it) }))
+            put("artists", JsonArray(artists.map { JsonPrimitive(it) }))
+            put("played", JsonArray(played.map { JsonPrimitive(it) }))
+            if (!country.isNullOrBlank()) {
+                put("country", country)
+            }
+            put("limit", limit)
+        }
+        return post("fyp", body)
+    }
+
+    /** New releases from the given artists, newest first (GET /api/radar). */
+    suspend fun getRadar(artistIds: List<String>, days: Int = 60, limit: Int = 30): VybeRadarData? =
+        fetch("radar?artists=${artistIds.take(30).joinToString(",")}&days=$days&limit=$limit")
+
+    /** Songs in a tempo lane: chill, focus, workout or running (GET /api/discovery/bpm). */
+    suspend fun getBpmLane(lane: String, limit: Int = 20): VybeBpmData? =
+        fetch("discovery/bpm?lane=$lane&limit=$limit")
+
+    suspend fun getHome(country: String? = null): VybeHomeData? =
+        fetch(if (country.isNullOrBlank()) "home" else "home?country=$country")
 
     suspend fun getCharts(): VybeChartsData? = fetch("charts")
 
     /** "More like this" for a Deezer track id (GET /api/song/:id/related). */
     suspend fun getRelatedTracks(deezerId: String, limit: Int = 20): VybeRelatedData? =
         fetch("song/$deezerId/related?limit=$limit")
+
+    /** Related artists for a Deezer artist id (GET /api/recommendations/artist/:id). */
+    suspend fun getRelatedArtists(deezerArtistId: String, limit: Int = 12): VybeRelatedArtistsData? =
+        fetch("recommendations/artist/$deezerArtistId?limit=$limit")
+
+    /** Mood / tag songs, e.g. "chill" (GET /api/recommendations/tag/:tag). */
+    suspend fun getTagSongs(tag: String, limit: Int = 20): VybeTagData? {
+        val encoded = java.net.URLEncoder.encode(tag, "UTF-8").replace("+", "%20")
+        return fetch("recommendations/tag/$encoded?limit=$limit")
+    }
 
     suspend fun search(query: String): VybeSearchData? {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")

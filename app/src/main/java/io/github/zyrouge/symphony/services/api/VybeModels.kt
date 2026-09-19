@@ -167,16 +167,123 @@ data class VybePlaylist(
 }
 
 @Serializable
+data class VybeRadio(
+    @Serializable(with = FlexibleStringSerializer::class)
+    val id: String,
+    val name: String = "",
+    val image: List<VybeImage>? = null,
+)
+
+/** Deezer editorial item; [kind] is "album" or "playlist". */
+@Serializable
+data class VybeEditorPick(
+    @Serializable(with = FlexibleStringSerializer::class)
+    val id: String,
+    val name: String = "",
+    val kind: String? = null,
+    val recordType: String? = null,
+    val nbTracks: Int? = null,
+    val releaseDate: String? = null,
+    val description: String? = null,
+    val explicit: Boolean = false,
+    val image: List<VybeImage>? = null,
+    val artists: VybeArtistsPayload? = null,
+) {
+    val isPlaylist: Boolean
+        get() = kind.equals("playlist", ignoreCase = true)
+
+    fun toAlbum() = VybeAlbum(
+        id = id,
+        name = name,
+        recordType = recordType,
+        nbTracks = nbTracks,
+        releaseDate = releaseDate,
+        explicit = explicit,
+        image = image,
+        artists = artists,
+    )
+
+    fun toPlaylist() = VybePlaylist(
+        id = id,
+        name = name,
+        description = description,
+        nbTracks = nbTracks,
+        image = image,
+    )
+}
+
+@Serializable
+data class VybeCountrySongs(
+    val country: String? = null,
+    val songs: List<VybeTrack> = emptyList(),
+)
+
+@Serializable
+data class VybeCountryAlbums(
+    val country: String? = null,
+    val albums: List<VybeAlbum> = emptyList(),
+)
+
+@Serializable
+data class VybeSpotlight(
+    val genre: VybeGenre? = null,
+    val songs: List<VybeTrack> = emptyList(),
+    val artists: List<VybeArtist> = emptyList(),
+)
+
+@Serializable
 data class VybeHomeData(
     val trending: List<VybeTrack> = emptyList(),
     val newReleases: List<VybeAlbum> = emptyList(),
     val playlists: List<VybePlaylist> = emptyList(),
     val artists: List<VybeArtist> = emptyList(),
     val genres: List<VybeGenre> = emptyList(),
+    val trendingAlbums: List<VybeAlbum> = emptyList(),
+    val editorsPicks: List<VybeEditorPick> = emptyList(),
+    val radios: List<VybeRadio> = emptyList(),
+    val topInCountry: VybeCountrySongs? = null,
+    val topAlbumsInCountry: VybeCountryAlbums? = null,
+    val spotlight: List<VybeSpotlight> = emptyList(),
+)
+
+/** One shelf of the server-blended For You page (POST /api/fyp). [type] is tracks|albums|artists. */
+@Serializable
+data class VybeFypRow(
+    val id: String = "",
+    val type: String = "tracks",
+    val title: String = "",
+    val items: List<JsonElement> = emptyList(),
+)
+
+@Serializable
+data class VybeFypData(
+    val feed: List<VybeTrack> = emptyList(),
+    val rows: List<VybeFypRow> = emptyList(),
+)
+
+@Serializable
+data class VybeRadarData(
+    val releases: List<VybeAlbum> = emptyList(),
+)
+
+@Serializable
+data class VybeBpmData(
+    val songs: List<VybeTrack> = emptyList(),
 )
 
 @Serializable
 data class VybeRelatedData(
+    val songs: List<VybeTrack> = emptyList(),
+)
+
+@Serializable
+data class VybeRelatedArtistsData(
+    val artists: List<VybeArtist> = emptyList(),
+)
+
+@Serializable
+data class VybeTagData(
+    val tag: String? = null,
     val songs: List<VybeTrack> = emptyList(),
 )
 
