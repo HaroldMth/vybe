@@ -63,6 +63,11 @@ class RadioShorty(private val symphony: Symphony) {
         if (songIds.isEmpty()) {
             return
         }
+        // Clicking a single song builds an endless "related" queue from it; playing an
+        // explicit list (album, playlist, shuffle...) plays exactly that list.
+        if (songIds.size == 1 && !shuffle) {
+            symphony.radio.autoplay.start(songIds.first())
+        }
         symphony.radio.queue.add(
             songIds,
             options = options.run {

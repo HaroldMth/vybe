@@ -33,6 +33,7 @@ class Symphony(application: Application) : AndroidViewModel(application), Sympho
     val vybeApi = VybeApiClient(this)
     val database = Database(this)
     val groove = Groove(this)
+    val streamCache = io.github.zyrouge.symphony.services.radio.StreamCache(this)
     val radio = Radio(this)
     val translator = Translator(this)
     val downloader = io.github.zyrouge.symphony.services.download.DownloadManager(this)

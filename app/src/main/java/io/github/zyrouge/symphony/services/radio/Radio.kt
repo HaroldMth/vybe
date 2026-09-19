@@ -46,6 +46,7 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
     val onUpdate = Eventer<Events>()
     val queue = RadioQueue(symphony)
     val shorty = RadioShorty(symphony)
+    val autoplay = RadioAutoplay(symphony)
     val session = RadioSession(symphony)
     var observatory = RadioObservatory(symphony)
 
@@ -73,6 +74,16 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
     }
 
     fun ready() {
+        // Once the look-ahead song has finished caching, gapless playback can safely
+        // stage it (it is now a local file, so preparing it costs no extra network).
+        symphony.streamCache.onSongCached = { cachedId ->
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                val (nextIndex) = getNextSong(SongFinishSource.Finish)
+                if (queue.getSongIdAt(nextIndex) == cachedId) {
+                    prepareNextPlayer()
+                }
+            }
+        }
         attachGrooveListener()
         session.start()
         observatory.start()
@@ -129,6 +140,9 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
             player!!.setOnFinishListener {
                 onSongFinish(SongFinishSource.Finish)
             }
+            player!!.setOnFullyBufferedListener {
+                prefetchNextSong()
+            }
             player!!.setOnErrorListener { what, extra ->
                 Logger.warn(
                     "Radio",
@@ -146,6 +160,7 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
             player!!.prepare()
             prepareNextPlayer()
             onUpdate.dispatch(Events.Player.Staged)
+            autoplay.onSongStarted()
         } catch (err: Exception) {
             Logger.warn(
                 "Radio",
@@ -165,9 +180,15 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
         if (song.id == nextPlayer?.id) {
             return
         }
+        val uri = symphony.downloader.resolvePlaybackUri(song)
+        if (uri.scheme == "http" || uri.scheme == "https") {
+            // Still a network stream: don't open a second connection while the current
+            // song is streaming. It gets staged once it has been cached (see ready()).
+            return
+        }
         try {
             nextPlayer?.destroy()
-            nextPlayer = RadioPlayer(symphony, song.id, symphony.downloader.resolvePlaybackUri(song)).also {
+            nextPlayer = RadioPlayer(symphony, song.id, uri).also {
                 it.prepare()
             }
         } catch (err: Exception) {
@@ -177,6 +198,19 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
                 err,
             )
         }
+    }
+
+    /**
+     * Called once the current song is completely buffered (or local): starts streaming
+     * and caching the song that comes after it, so the transition is instant.
+     */
+    private fun prefetchNextSong() {
+        val (nextIndex) = getNextSong(SongFinishSource.Finish)
+        val nextId = queue.getSongIdAt(nextIndex) ?: return
+        if (nextId == queue.currentSongId) {
+            return
+        }
+        symphony.groove.song.get(nextId)?.let { symphony.streamCache.prefetch(it) }
     }
 
     fun resume() = start()
@@ -229,6 +263,7 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
 
     fun stop(ended: Boolean = true) {
         stopCurrentSong()
+        autoplay.stop()
         queue.reset()
         clearSleepTimer()
         persistedSpeed = RadioPlayer.DEFAULT_SPEED

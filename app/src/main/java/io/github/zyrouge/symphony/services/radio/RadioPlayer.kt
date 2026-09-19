@@ -13,6 +13,7 @@ typealias RadioPlayerOnPreparedListener = () -> Unit
 typealias RadioPlayerOnPlaybackPositionListener = (RadioPlayer.PlaybackPosition) -> Unit
 typealias RadioPlayerOnFinishListener = () -> Unit
 typealias RadioPlayerOnErrorListener = (Int, Int) -> Unit
+typealias RadioPlayerOnFullyBufferedListener = () -> Unit
 
 class RadioPlayer(val symphony: Symphony, val id: String, val uri: Uri) {
     data class PlaybackPosition(val played: Long, val total: Long) {
@@ -38,12 +39,20 @@ class RadioPlayer(val symphony: Symphony, val id: String, val uri: Uri) {
     private var onPlaybackPosition: RadioPlayerOnPlaybackPositionListener? = null
     private var onFinish: RadioPlayerOnFinishListener? = null
     private var onError: RadioPlayerOnErrorListener? = null
+    private var onFullyBuffered: RadioPlayerOnFullyBufferedListener? = null
     private var fader: RadioEffects.Fader? = null
     private var playbackPositionUpdater: Timer? = null
 
     var state = State.Unprepared
         private set
     var hasPlayedOnce = false
+        private set
+
+    /**
+     * True once the whole track is available locally: either it is a local/cached
+     * file, or MediaPlayer reported 100% buffered for a network stream.
+     */
+    var isFullyBuffered = false
         private set
     var volume = MAX_VOLUME
         private set
@@ -71,8 +80,16 @@ class RadioPlayer(val symphony: Symphony, val id: String, val uri: Uri) {
 
     init {
         unsafeMediaPlayer = MediaPlayer().also { ump ->
+            ump.setOnBufferingUpdateListener { _, percent ->
+                if (percent >= 100) {
+                    markFullyBuffered()
+                }
+            }
             ump.setOnPreparedListener {
                 state = State.Prepared
+                if (uri.scheme != "http" && uri.scheme != "https") {
+                    markFullyBuffered()
+                }
                 ump.playbackParams.setAudioFallbackMode(PlaybackParams.AUDIO_FALLBACK_MODE_DEFAULT)
                 createDurationTimer()
                 onPrepared?.invoke()
@@ -239,6 +256,22 @@ class RadioPlayer(val symphony: Symphony, val id: String, val uri: Uri) {
         onError = listener
     }
 
+    /** Fires once (immediately if already the case) when the whole track is buffered/local. */
+    fun setOnFullyBufferedListener(listener: RadioPlayerOnFullyBufferedListener?) {
+        onFullyBuffered = listener
+        if (isFullyBuffered) {
+            listener?.invoke()
+        }
+    }
+
+    private fun markFullyBuffered() {
+        if (isFullyBuffered) {
+            return
+        }
+        isFullyBuffered = true
+        onFullyBuffered?.invoke()
+    }
+
     private fun createDurationTimer() {
         playbackPositionUpdater = kotlin.concurrent.timer(period = 100L) {
             emitPlaybackPosition()
@@ -247,6 +280,11 @@ class RadioPlayer(val symphony: Symphony, val id: String, val uri: Uri) {
 
     private fun emitPlaybackPosition() {
         playbackPosition?.let {
+            // Some streams never report 100% buffered; don't let that stall the look-ahead
+            // chain, so past this point the next song is allowed to start caching anyway.
+            if (!isFullyBuffered && it.total > 0 && it.ratio >= BUFFER_FALLBACK_RATIO) {
+                markFullyBuffered()
+            }
             onPlaybackPosition?.invoke(it)
         }
     }
@@ -262,5 +300,6 @@ class RadioPlayer(val symphony: Symphony, val id: String, val uri: Uri) {
         const val DUCK_VOLUME = 0.2f
         const val DEFAULT_SPEED = 1f
         const val DEFAULT_PITCH = 1f
+        private const val BUFFER_FALLBACK_RATIO = 0.4f
     }
 }

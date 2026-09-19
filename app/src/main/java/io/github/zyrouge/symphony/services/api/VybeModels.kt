@@ -176,6 +176,11 @@ data class VybeHomeData(
 )
 
 @Serializable
+data class VybeRelatedData(
+    val songs: List<VybeTrack> = emptyList(),
+)
+
+@Serializable
 data class VybeSearchData(
     val songs: List<VybeTrack> = emptyList(),
     val artists: List<VybeArtist> = emptyList(),

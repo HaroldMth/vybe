@@ -413,10 +413,7 @@ private fun TrendingRail(context: ViewContext, songIds: List<String>) {
                 modifier = Modifier
                     .width(128.dp)
                     .clickable {
-                        context.symphony.radio.shorty.playQueue(
-                            songIds,
-                            options = Radio.PlayOptions(index = index),
-                        )
+                        context.symphony.radio.shorty.playQueue(songId)
                     }
             ) {
                 Box {

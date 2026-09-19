@@ -73,7 +73,9 @@ class DownloadManager(private val symphony: Symphony) {
 
     /** Playback should call this instead of `song.uri` directly. */
     fun resolvePlaybackUri(song: Song): Uri =
-        localUris[song.id]?.toUri() ?: song.uri
+        localUris[song.id]?.toUri()
+            ?: symphony.streamCache.resolve(song)
+            ?: song.uri
 
     fun download(song: Song) {
         if (isDownloaded(song.id)) return

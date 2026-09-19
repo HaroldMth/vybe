@@ -64,6 +64,10 @@ class VybeApiClient(private val symphony: Symphony) {
 
     suspend fun getCharts(): VybeChartsData? = fetch("charts")
 
+    /** "More like this" for a Deezer track id (GET /api/song/:id/related). */
+    suspend fun getRelatedTracks(deezerId: String, limit: Int = 20): VybeRelatedData? =
+        fetch("song/$deezerId/related?limit=$limit")
+
     suspend fun search(query: String): VybeSearchData? {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")
         return fetch("search?q=$encoded")
