@@ -66,7 +66,9 @@ fun BaseView(symphony: Symphony, activity: MainActivity) {
                     DownloadsView(context)
                 }
                 baseComposable<ArtistViewRoute> {
-                    ArtistView(context, it.toRoute())
+                    // Must name the route type: ArtistView takes a plain String, so a bare
+                    // toRoute() would infer String and try to decode the whole route as one.
+                    ArtistView(context, it.toRoute<ArtistViewRoute>().artistName)
                 }
                 baseComposable<AlbumViewRoute> {
                     AlbumView(context, it.toRoute())

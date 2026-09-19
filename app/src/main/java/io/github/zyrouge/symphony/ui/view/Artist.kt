@@ -65,6 +65,8 @@ import io.github.zyrouge.symphony.ui.components.ArtistDropdownMenu
 import io.github.zyrouge.symphony.ui.components.GenericGrooveCard
 import io.github.zyrouge.symphony.ui.components.SongCard
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
+import io.github.zyrouge.symphony.utils.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -78,7 +80,14 @@ fun ArtistView(context: ViewContext, artistName: String) {
 
     LaunchedEffect(artistName) {
         loading = true
-        context.symphony.groove.catalog.ensureArtist(artistName)
+        try {
+            context.symphony.groove.catalog.ensureArtist(artistName)
+        } catch (err: CancellationException) {
+            throw err
+        } catch (err: Exception) {
+            // An uncaught exception in a LaunchedEffect takes the whole app down.
+            Logger.error("ArtistView", "unable to load artist $artistName", err)
+        }
         loading = false
         detailLoaded = true
     }
