@@ -85,15 +85,31 @@ class AlbumRepository(private val symphony: Symphony) {
         }
     }
 
-    fun putStub(album: Album) {
-        val existing = cache.putIfAbsent(album.id, album)
-        if (existing == null) {
-            _all.update {
-                if (it.contains(album.id)) it else it + album.id
+    fun putOrUpdate(album: Album) {
+        cache.compute(album.id) { id, existing ->
+            if (existing == null) {
+                _all.update { if (it.contains(id)) it else it + id }
+                emitCount()
+                album
+            } else {
+                existing.artists.addAll(album.artists)
+                if (album.numberOfTracks > existing.numberOfTracks) {
+                    existing.numberOfTracks = album.numberOfTracks
+                }
+                if (album.duration > existing.duration) {
+                    existing.duration = album.duration
+                }
+                if (album.startYear != null) existing.startYear = album.startYear
+                if (album.endYear != null) existing.endYear = album.endYear
+                if (!album.label.isNullOrBlank()) existing.label = album.label
+                if (!album.genre.isNullOrBlank()) existing.genre = album.genre
+                if (!album.description.isNullOrBlank()) existing.description = album.description
+                existing
             }
-            emitCount()
         }
     }
+
+    fun putStub(album: Album) = putOrUpdate(album)
 
     fun reset() {
         cache.clear()

@@ -140,6 +140,19 @@ fun AlbumView(context: ViewContext, route: AlbumViewRoute) {
     )
 }
 
+private fun formatDuration(duration: kotlin.time.Duration): String {
+    val totalSeconds = duration.inWholeSeconds
+    if (totalSeconds <= 0) return ""
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return when {
+        hours > 0 -> "${hours} hr ${minutes} mins"
+        minutes > 0 -> "${minutes} mins ${seconds} secs"
+        else -> "${seconds} secs"
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AlbumHero(context: ViewContext, album: Album) {
@@ -194,9 +207,41 @@ private fun AlbumHero(context: ViewContext, album: Album) {
                         )
                         CircleSeparator()
                     }
+                    val songCount = album.getSongIds(context.symphony).size.coerceAtLeast(album.numberOfTracks)
+                    if (songCount > 0) {
+                        Text(
+                            "$songCount songs",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                    val formattedDuration = formatDuration(album.duration)
+                    if (formattedDuration.isNotBlank()) {
+                        if (songCount > 0) CircleSeparator()
+                        Text(
+                            formattedDuration,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+                val extraMeta = listOfNotNull(album.genre, album.label).filter { it.isNotBlank() }.joinToString(" · ")
+                if (extraMeta.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        album.duration.toString(),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        extraMeta,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    )
+                }
+                if (!album.description.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        album.description!!,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        ),
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }

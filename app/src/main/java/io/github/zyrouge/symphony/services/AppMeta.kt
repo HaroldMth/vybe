@@ -10,7 +10,7 @@ import org.json.JSONObject
 
 @Suppress("ConstPropertyName")
 object AppMeta {
-    const val appName = "Symphony"
+    const val appName = "Vybe"
     const val author = "Zyrouge"
     const val githubRepositoryOwner = "zyrouge"
     const val githubRepositoryName = "symphony"
@@ -26,7 +26,7 @@ object AppMeta {
     const val redditUrl = "https://reddit.com/r/symphony_app"
     const val contributingUrl = "$githubRepositoryUrl#contributing"
 
-    const val packageName = "io.github.zyrouge.symphony"
+    const val packageName = "xyz.hanstech.vybe"
     const val izzyOnDroidUrl = "https://apt.izzysoft.de/fdroid/index/apk/$packageName"
     const val fdroidUrl = "https://f-droid.org/en/packages/$packageName"
     const val playStoreUrl = "https://play.google.com/store/apps/details?id=$packageName"

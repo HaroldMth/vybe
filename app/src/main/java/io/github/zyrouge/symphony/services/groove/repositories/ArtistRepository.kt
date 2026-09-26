@@ -81,21 +81,37 @@ class ArtistRepository(private val symphony: Symphony) {
         emitCount()
     }
 
-    fun putStub(artist: Artist, apiId: String? = null) {
-        // A blank artist name can never be safely navigated to (type-safe Navigation
-        // routes crash on empty String arguments), so refuse to store one here too.
-        if (artist.name.isBlank()) {
-            return
+    fun putOrUpdate(artist: Artist, apiId: String? = null) {
+        if (artist.name.isBlank()) return
+        cache.compute(artist.name) { name, existing ->
+            if (existing == null) {
+                _all.update { if (it.contains(name)) it else it + name }
+                emitCount()
+                artist
+            } else {
+                if (artist.numberOfAlbums > existing.numberOfAlbums) {
+                    existing.numberOfAlbums = artist.numberOfAlbums
+                }
+                if (artist.numberOfTracks > existing.numberOfTracks) {
+                    existing.numberOfTracks = artist.numberOfTracks
+                }
+                if (!artist.bio.isNullOrBlank()) existing.bio = artist.bio
+                if (artist.nbFan != null) existing.nbFan = artist.nbFan
+                if (artist.listenersCount != null) existing.listenersCount = artist.listenersCount
+                if (!artist.country.isNullOrBlank()) existing.country = artist.country
+                if (!artist.formedYear.isNullOrBlank()) existing.formedYear = artist.formedYear
+                if (artist.genres.isNotEmpty()) existing.genres = artist.genres
+                if (!artist.apiId.isNullOrBlank()) existing.apiId = artist.apiId
+                existing
+            }
         }
-        cache.putIfAbsent(artist.name, artist)
-        if (!apiId.isNullOrBlank()) {
-            cache[apiId] = cache[artist.name] ?: artist
+        val targetApiId = apiId ?: artist.apiId
+        if (!targetApiId.isNullOrBlank()) {
+            cache[targetApiId] = cache[artist.name] ?: artist
         }
-        _all.update {
-            if (it.contains(artist.name)) it else it + artist.name
-        }
-        emitCount()
     }
+
+    fun putStub(artist: Artist, apiId: String? = null) = putOrUpdate(artist, apiId)
 
     fun getArtworkUri(artistName: String) = songIdsCache[artistName]?.firstOrNull()
         ?.let { symphony.groove.song.getArtworkUri(it) }

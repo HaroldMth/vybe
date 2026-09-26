@@ -15,8 +15,10 @@ import io.github.zyrouge.symphony.services.api.VybeSearchData
 import io.github.zyrouge.symphony.services.api.VybeTrack
 import io.github.zyrouge.symphony.services.groove.repositories.PlaylistRepository
 import io.github.zyrouge.symphony.utils.Logger
+import io.github.zyrouge.symphony.utils.concurrentSetOf
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 class VybeCatalog(private val symphony: Symphony) {
     // The catalog is populated both during application startup and when the For You
@@ -29,6 +31,8 @@ class VybeCatalog(private val symphony: Symphony) {
     private val playlistCoverById = ConcurrentHashMap<String, String>()
     private val albumCoverById = ConcurrentHashMap<String, String>()
     private val artistCoverByName = ConcurrentHashMap<String, String>()
+    private val loadedAlbumIds = concurrentSetOf<String>()
+    private val loadedArtistIds = concurrentSetOf<String>()
 
     fun albumIdForSong(songId: String) = albumIdBySongId[songId]
     fun artistIdForName(name: String) = artistIdByName[name]
@@ -44,6 +48,8 @@ class VybeCatalog(private val symphony: Symphony) {
         playlistCoverById.clear()
         albumCoverById.clear()
         artistCoverByName.clear()
+        loadedAlbumIds.clear()
+        loadedArtistIds.clear()
     }
 
     suspend fun bootstrap() {
@@ -145,7 +151,8 @@ class VybeCatalog(private val symphony: Symphony) {
             if (id != null) artistIdByName[name] = id
         }
         val year = album.releaseDate?.take(4)?.toIntOrNull()
-        symphony.groove.album.putStub(
+        val totalSec = album.totalDuration ?: album.songs.sumOf { it.duration }
+        symphony.groove.album.putOrUpdate(
             Album(
                 id = album.id,
                 name = album.name,
@@ -153,17 +160,16 @@ class VybeCatalog(private val symphony: Symphony) {
                 startYear = year,
                 endYear = year,
                 numberOfTracks = album.nbTracks ?: album.songs.size,
-                duration = 0.milliseconds,
+                duration = if (totalSec > 0) totalSec.seconds else 0.milliseconds,
+                label = album.label,
+                genre = album.genre,
+                description = album.description,
             )
         )
         if (album.songs.isNotEmpty()) ingestTracks(album.songs)
     }
 
     fun ingestArtistStub(artist: VybeArtist) {
-        // An artist with a blank name can arrive from the API (missing "name" field
-        // defaults to ""). A blank string used as a type-safe Navigation argument
-        // crashes RouteDecoder with "Unexpected null value for non-nullable argument"
-        // when the artist is later tapped, so never let one enter the local store.
         if (artist.name.isBlank()) {
             return
         }
@@ -174,11 +180,18 @@ class VybeCatalog(private val symphony: Symphony) {
             artistCoverByName[artist.name] = it
             if (artist.id.isNotBlank()) artistCoverByName[artist.id] = it
         }
-        symphony.groove.artist.putStub(
+        symphony.groove.artist.putOrUpdate(
             Artist(
                 name = artist.name,
                 numberOfAlbums = artist.nbAlbum ?: 0,
                 numberOfTracks = 0,
+                bio = artist.bio,
+                nbFan = artist.nbFan,
+                listenersCount = artist.externalStats?.listeners,
+                country = artist.country,
+                formedYear = artist.formedYear,
+                genres = artist.genres,
+                apiId = artist.id.takeIf { it.isNotBlank() },
             ),
             apiId = artist.id,
         )
@@ -208,12 +221,17 @@ class VybeCatalog(private val symphony: Symphony) {
     }
 
     fun ingestAlbumDetail(album: VybeAlbum) {
+        loadedAlbumIds.add(album.id)
         ingestAlbumStub(album)
         ingestTracks(album.songs)
     }
 
     fun ingestArtistDetail(data: VybeArtistDetailData) {
-        data.info?.let { ingestArtistStub(it) }
+        data.info?.let {
+            loadedArtistIds.add(it.name)
+            if (it.id.isNotBlank()) loadedArtistIds.add(it.id)
+            ingestArtistStub(it)
+        }
         ingestTracks(data.songs)
         ingestTracks(data.radio)
         data.albums.forEach { ingestAlbumStub(it) }
@@ -231,16 +249,22 @@ class VybeCatalog(private val symphony: Symphony) {
     }
 
     suspend fun ensureAlbum(albumId: String) {
-        if (symphony.groove.album.getSongIds(albumId).isNotEmpty()) return
+        val album = symphony.groove.album.get(albumId)
+        val songCount = symphony.groove.album.getSongIds(albumId).size
+        if (loadedAlbumIds.contains(albumId) && album != null && songCount >= album.numberOfTracks && album.numberOfTracks > 0) {
+            return
+        }
         val data = symphony.vybeApi.getAlbum(albumId) ?: return
         ingestAlbumDetail(data)
     }
 
     suspend fun ensureArtist(nameOrId: String) {
         val apiId = artistIdByName[nameOrId] ?: nameOrId
-        val existingSongs = symphony.groove.artist.getSongIds(nameOrId)
-            .ifEmpty { symphony.groove.artist.getSongIds(apiId) }
-        if (existingSongs.size >= 5) return
+        val artist = symphony.groove.artist.get(nameOrId) ?: symphony.groove.artist.get(apiId)
+        val hasBioOrFans = artist?.bio != null || artist?.nbFan != null || artist?.listenersCount != null
+        if (loadedArtistIds.contains(nameOrId) && loadedArtistIds.contains(apiId) && hasBioOrFans) {
+            return
+        }
 
         var detail = symphony.vybeApi.getArtist(apiId)
         if (detail == null && apiId != nameOrId) {
@@ -256,6 +280,26 @@ class VybeCatalog(private val symphony: Symphony) {
             }
         }
         if (detail != null) ingestArtistDetail(detail)
+    }
+
+    suspend fun loadMoreArtistSongs(artistName: String): Int {
+        val albumIds = symphony.groove.artist.getAlbumIds(artistName)
+        var loadedCount = 0
+        for (albumId in albumIds) {
+            if (!loadedAlbumIds.contains(albumId)) {
+                ensureAlbum(albumId)
+                loadedCount++
+                if (loadedCount >= 2) break
+            }
+        }
+        if (loadedCount == 0) {
+            val search = symphony.vybeApi.search(artistName)
+            if (search != null) {
+                val ingested = ingestTracks(search.songs)
+                loadedCount = ingested.size
+            }
+        }
+        return loadedCount
     }
 
     suspend fun ensureGenre(nameOrId: String) {

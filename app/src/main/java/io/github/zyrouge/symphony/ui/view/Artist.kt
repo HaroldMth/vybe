@@ -67,6 +67,7 @@ import io.github.zyrouge.symphony.ui.components.SongCard
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.utils.Logger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -192,8 +193,11 @@ fun ArtistView(context: ViewContext, artistName: String) {
                             )
                             val artist = context.symphony.groove.artist.get(artistName)
                             val meta = buildList {
+                                artist?.followersFormatted?.let { add(it) }
+                                    ?: artist?.listenersFormatted?.let { add(it) }
                                 artist?.numberOfAlbums?.takeIf { it > 0 }?.let { add("$it albums") }
-                                artist?.numberOfTracks?.takeIf { it > 0 }?.let { add("$it songs") }
+                                val count = songIds.size.coerceAtLeast(artist?.numberOfTracks ?: 0)
+                                if (count > 0) add("$count songs")
                             }.joinToString(" · ")
                             if (meta.isNotBlank()) {
                                 Text(
@@ -320,6 +324,66 @@ fun ArtistView(context: ViewContext, artistName: String) {
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
+
+                    val artistObj = context.symphony.groove.artist.get(artistName)
+                    if (artistObj != null && (!artistObj.bio.isNullOrBlank() || artistObj.genres.isNotEmpty() || !artistObj.country.isNullOrBlank() || !artistObj.formedYear.isNullOrBlank())) {
+                        item {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                "About ${artistObj.name}",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                modifier = Modifier.padding(16.dp, 8.dp, 16.dp, 4.dp),
+                            )
+                            androidx.compose.material3.Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                colors = androidx.compose.material3.CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ),
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    val details = listOfNotNull(
+                                        artistObj.formedYear?.let { "Formed in $it" },
+                                        artistObj.country?.let { "Country: $it" },
+                                        artistObj.genres.takeIf { it.isNotEmpty() }?.joinToString(", ")?.let { "Genres: $it" },
+                                        artistObj.followersFormatted,
+                                        artistObj.listenersFormatted,
+                                    ).joinToString(" · ")
+                                    if (details.isNotBlank()) {
+                                        Text(
+                                            details,
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            ),
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                    }
+                                    if (!artistObj.bio.isNullOrBlank()) {
+                                        var expandedBio by remember { mutableStateOf(false) }
+                                        Text(
+                                            artistObj.bio!!,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            maxLines = if (expandedBio) Int.MAX_VALUE else 4,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        if (artistObj.bio!!.length > 200) {
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                if (expandedBio) "Show less" else "Read more",
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.Bold,
+                                                ),
+                                                modifier = Modifier.clickable { expandedBio = !expandedBio },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // ── Tab: Songs ────────────────────────────────────────────────
@@ -339,6 +403,32 @@ fun ArtistView(context: ViewContext, artistName: String) {
                             context.symphony.groove.song.get(songId)?.let { song ->
                                 SongCard(context, song) {
                                     context.symphony.radio.shorty.playQueue(songIds)
+                                }
+                            }
+                        }
+                        item {
+                            var loadingMore by remember { mutableStateOf(false) }
+                            val scope = androidx.compose.runtime.rememberCoroutineScope()
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (loadingMore) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                } else {
+                                    FilledTonalButton(
+                                        onClick = {
+                                            scope.launch {
+                                                loadingMore = true
+                                                context.symphony.groove.catalog.loadMoreArtistSongs(artistName)
+                                                loadingMore = false
+                                            }
+                                        }
+                                    ) {
+                                        Text("Load More Songs")
+                                    }
                                 }
                             }
                         }
