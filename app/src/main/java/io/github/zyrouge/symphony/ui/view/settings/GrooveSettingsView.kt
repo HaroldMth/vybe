@@ -33,7 +33,6 @@ import io.github.zyrouge.symphony.services.groove.Groove
 import io.github.zyrouge.symphony.ui.components.AdaptiveSnackbar
 import io.github.zyrouge.symphony.ui.components.IconButtonPlaceholder
 import io.github.zyrouge.symphony.ui.components.TopAppBarMinimalTitle
-import io.github.zyrouge.symphony.ui.components.settings.ConsiderContributingTile
 import io.github.zyrouge.symphony.ui.components.settings.SettingsOptionTile
 import io.github.zyrouge.symphony.ui.components.settings.SettingsSideHeading
 import io.github.zyrouge.symphony.ui.components.settings.SettingsSimpleTile
@@ -95,7 +94,6 @@ fun GrooveSettingsView(context: ViewContext, route: GrooveSettingsViewRoute) {
                     .fillMaxSize()
             ) {
                 Column(modifier = Modifier.verticalScroll(scrollState)) {
-                    ConsiderContributingTile(context)
                     SettingsSideHeading("Vybe Backend Config")
                     val apiBaseUrl by context.symphony.settings.apiBaseUrl.flow.collectAsState()
                     SettingsTextInputTile(

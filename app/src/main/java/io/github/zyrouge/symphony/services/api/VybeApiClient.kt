@@ -1,6 +1,7 @@
 package io.github.zyrouge.symphony.services.api
 
 import io.github.zyrouge.symphony.Symphony
+import io.github.zyrouge.symphony.utils.HttpClient
 import io.github.zyrouge.symphony.utils.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,10 +13,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.concurrent.TimeUnit
 
 class VybeApiClient(private val symphony: Symphony) {
     @PublishedApi
@@ -25,11 +24,11 @@ class VybeApiClient(private val symphony: Symphony) {
         isLenient = true
     }
 
+    // Shared with the rest of the app (downloads, Coil's image loader) so
+    // connections to the same hosts get reused instead of every subsystem
+    // opening its own. See utils/Http.kt for why the timeouts are generous.
     @PublishedApi
-    internal val httpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    internal val httpClient = HttpClient
 
     fun getBaseUrl(): String {
         val configured = symphony.settings.apiBaseUrl.value?.trim()?.removeSuffix("/")

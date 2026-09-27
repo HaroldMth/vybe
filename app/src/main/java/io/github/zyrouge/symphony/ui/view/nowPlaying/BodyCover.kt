@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.input.pointer.pointerInput
@@ -109,6 +111,53 @@ private fun NowPlayingBodyCoverLyrics(context: ViewContext, orientation: ScreenO
     ) {
         // Lyrics card header
         Box(modifier = Modifier.fillMaxSize()) {
+            // Lyrics content — declared BEFORE the header row so it paints
+            // *underneath* it. Scrolled/auto-scrolling lines pass through the
+            // top-padded region as they animate; with the header declared
+            // after (and its own scrim below), it stays on top instead of
+            // lyric text drawing over the "LYRICS" title and gear icon.
+            LyricsText(
+                context,
+                padding = PaddingValues(
+                    start = 12.dp,
+                    end = 12.dp,
+                    // Header's real measured height + breathing room, not a magic number.
+                    top = headerHeightDp + 20.dp,
+                    bottom = 24.dp,
+                ),
+                style = TimedContentTextStyle(
+                    highlighted = MaterialTheme.typography.titleMedium.copy(
+                        color = Color.White,
+                    ),
+                    active = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    ),
+                    inactive = MaterialTheme.typography.titleMedium.copy(
+                        color = Color.White.copy(alpha = 0.4f),
+                    ),
+                    spacing = 10.dp,
+                ),
+            )
+
+            // Opaque scrim behind the header so no lyric pixels show through
+            // the gaps around the "LYRICS" label/pill/icon either — not just
+            // z-order, an actual solid backdrop matching the card.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxWidth()
+                    .height(headerHeightDp + 12.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF1A1A1A),
+                                Color(0xFF1A1A1A).copy(alpha = 0f),
+                            ),
+                        ),
+                    ),
+            )
+
             // Header row
             Row(
                 modifier = Modifier
@@ -148,31 +197,6 @@ private fun NowPlayingBodyCoverLyrics(context: ViewContext, orientation: ScreenO
                 Spacer(modifier = Modifier.width(4.dp))
                 LyricsSettingsButton(context, tint = Color.White.copy(alpha = 0.6f))
             }
-
-            // Lyrics content
-            LyricsText(
-                context,
-                padding = PaddingValues(
-                    start = 12.dp,
-                    end = 12.dp,
-                    // Header's real measured height + breathing room, not a magic number.
-                    top = headerHeightDp + 20.dp,
-                    bottom = 24.dp,
-                ),
-                style = TimedContentTextStyle(
-                    highlighted = MaterialTheme.typography.titleMedium.copy(
-                        color = Color.White,
-                    ),
-                    active = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                    ),
-                    inactive = MaterialTheme.typography.titleMedium.copy(
-                        color = Color.White.copy(alpha = 0.4f),
-                    ),
-                    spacing = 10.dp,
-                ),
-            )
         }
     }
 }
