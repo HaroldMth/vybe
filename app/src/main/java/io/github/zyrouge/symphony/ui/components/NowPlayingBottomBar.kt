@@ -144,7 +144,7 @@ fun NowPlayingBottomBar(context: ViewContext, insetPadding: Boolean = true) {
                         .wrapContentHeight()
                         .swipeable(
                             onSwipeUp = {
-                                context.navController.navigate(NowPlayingViewRoute)
+                                openNowPlaying(context)
                             },
                             onSwipeDown = {
                                 context.symphony.radio.stop()
@@ -152,7 +152,7 @@ fun NowPlayingBottomBar(context: ViewContext, insetPadding: Boolean = true) {
                         ),
                     shape = RectangleShape,
                     onClick = {
-                        context.navController.navigate(NowPlayingViewRoute)
+                        openNowPlaying(context)
                     }
                 ) {
                     Row(
@@ -373,5 +373,19 @@ private fun NowPlayingBottomBarContentText(
                 )
             }
         }
+    }
+}
+
+/**
+ * NowPlaying is meant to be a single, top-level screen — never stacked on
+ * top of itself. `navigate()` alone would push a second copy onto the
+ * backstack if this fires twice in quick succession (e.g. a swipe-up
+ * registering alongside a tap), so a single back-press/swipe-down wouldn't
+ * fully close it. `launchSingleTop` collapses that into a no-op if it's
+ * already the current destination.
+ */
+private fun openNowPlaying(context: ViewContext) {
+    context.navController.navigate(NowPlayingViewRoute) {
+        launchSingleTop = true
     }
 }

@@ -1,13 +1,16 @@
 package io.github.zyrouge.symphony.services.groove.repositories
 
+import android.content.Context
 import android.net.Uri
 import io.github.zyrouge.symphony.Symphony
 import io.github.zyrouge.symphony.services.groove.Playlist
+import io.github.zyrouge.symphony.services.groove.Song
 import io.github.zyrouge.symphony.utils.ActivityUtils
 import io.github.zyrouge.symphony.utils.FuzzySearchOption
 import io.github.zyrouge.symphony.utils.FuzzySearcher
 import io.github.zyrouge.symphony.utils.KeyGenerator
 import io.github.zyrouge.symphony.utils.Logger
+import io.github.zyrouge.symphony.utils.SongJson
 import io.github.zyrouge.symphony.utils.mutate
 import io.github.zyrouge.symphony.utils.withCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +32,19 @@ class PlaylistRepository(private val symphony: Symphony) {
     private val searcher = FuzzySearcher<String>(
         options = listOf(FuzzySearchOption({ v -> get(v)?.title?.let { compareString(it) } }))
     )
+
+    // Playlists only ever stored a bare songPath per member, resolved back to
+    // a Song via SongRepository's in-memory pathCache/id cache. That cache is
+    // only populated by whatever the remote catalog has fetched this session
+    // (home/charts/search), so after a restart — or once a track scrolls out
+    // of that cache — playlist members that are remote/streamed songs (not
+    // locally scanned files) silently fail to resolve and the playlist reads
+    // as empty. Snapshot enough of each member's metadata to rehydrate it
+    // independent of that cache, same approach as downloads/recently-played.
+    private val songSnapshotPrefs by lazy {
+        symphony.applicationContext
+            .getSharedPreferences("vybe_playlist_songs", Context.MODE_PRIVATE)
+    }
 
     private val _isUpdating = MutableStateFlow(false)
     val isUpdating = _isUpdating.asStateFlow()
@@ -67,6 +83,7 @@ class PlaylistRepository(private val symphony: Symphony) {
 
                     else -> x
                 }
+                rehydrateSnapshots(playlist)
                 cache[playlist.id] = playlist
                 _all.update {
                     it + playlist.id
@@ -86,6 +103,42 @@ class PlaylistRepository(private val symphony: Symphony) {
         }
         emitUpdateId()
         emitUpdate(false)
+    }
+
+    /** Re-registers any playlist member whose Song fell out of the session cache. */
+    private fun rehydrateSnapshots(playlist: Playlist) {
+        playlist.songPaths.forEach { path ->
+            readSongSnapshot(path)?.let { song -> registerSong(song) }
+        }
+    }
+
+    private fun registerSong(song: Song) {
+        symphony.groove.albumArtist.onSong(song)
+        symphony.groove.album.onSong(song)
+        symphony.groove.artist.onSong(song)
+        symphony.groove.genre.onSong(song)
+        symphony.groove.song.onSong(song)
+    }
+
+    private fun snapshotSongs(songIds: List<String>) {
+        songIds.forEach { songId ->
+            val song = symphony.groove.song.get(songId) ?: return@forEach
+            try {
+                songSnapshotPrefs.edit().putString(song.path, SongJson.encode(song)).apply()
+            } catch (err: Exception) {
+                Logger.error("PlaylistRepository", "failed snapshotting ${song.id}", err)
+            }
+        }
+    }
+
+    private fun readSongSnapshot(path: String): Song? {
+        val raw = songSnapshotPrefs.getString(path, null) ?: return null
+        return try {
+            SongJson.decode(raw)
+        } catch (err: Exception) {
+            Logger.error("PlaylistRepository", "failed restoring snapshot for $path", err)
+            null
+        }
     }
 
     fun reset() {
@@ -132,13 +185,16 @@ class PlaylistRepository(private val symphony: Symphony) {
         ?: create(FAVORITE_PLAYLIST, "Favorites", emptyList())
 
     fun create(title: String, songIds: List<String>) = create(idGenerator.next(), title, songIds)
-    private fun create(id: String, title: String, songIds: List<String>) = Playlist(
-        id = id,
-        title = title,
-        songPaths = songIds.mapNotNull { symphony.groove.song.get(it)?.path },
-        uri = null,
-        path = null,
-    )
+    private fun create(id: String, title: String, songIds: List<String>): Playlist {
+        snapshotSongs(songIds)
+        return Playlist(
+            id = id,
+            title = title,
+            songPaths = songIds.mapNotNull { symphony.groove.song.get(it)?.path },
+            uri = null,
+            path = null,
+        )
+    }
 
     fun add(playlist: Playlist) {
         cache[playlist.id] = playlist
@@ -174,6 +230,7 @@ class PlaylistRepository(private val symphony: Symphony) {
 
     fun update(id: String, songIds: List<String>) {
         val playlist = get(id) ?: return
+        snapshotSongs(songIds)
         val updated = Playlist(
             id = id,
             title = playlist.title,

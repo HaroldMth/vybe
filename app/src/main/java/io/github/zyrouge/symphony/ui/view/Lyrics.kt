@@ -23,10 +23,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import io.github.zyrouge.symphony.ui.components.IconButtonPlaceholder
+import io.github.zyrouge.symphony.ui.components.LyricsSettingsButton
 import io.github.zyrouge.symphony.ui.components.KeepScreenAwake
 import io.github.zyrouge.symphony.ui.components.LyricsText
 import io.github.zyrouge.symphony.ui.components.TimedContentTextStyle
@@ -77,10 +76,14 @@ fun LyricsView(context: ViewContext) {
                         }
                     },
                     actions = {
-                        IconButtonPlaceholder()
+                        LyricsSettingsButton(context)
                     },
+                    // Deliberately NOT transparent: unlike static list screens, this
+                    // app bar sits directly above scrolling lyrics text, so a
+                    // transparent container let lines scroll up underneath it and
+                    // blend into the title, making both hard to read.
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = Color.Transparent
+                        containerColor = MaterialTheme.colorScheme.surface,
                     ),
                 )
             },

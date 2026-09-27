@@ -11,25 +11,28 @@ import org.json.JSONObject
 @Suppress("ConstPropertyName")
 object AppMeta {
     const val appName = "Vybe"
-    const val author = "Zyrouge"
-    const val githubRepositoryOwner = "zyrouge"
-    const val githubRepositoryName = "symphony"
-    const val githubProfileUrl = "https://github.com/$githubRepositoryOwner"
+    const val author = "HANS TECH"
+
+    // Vybe's own repo/releases. Update this once the HaroldMth/vybe repo has
+    // actual GitHub releases published; until then leave checkForUpdates off
+    // by default (see Settings) so it doesn't silently 404 on startup.
+    const val githubRepositoryOwner = "HaroldMth"
+    const val githubRepositoryName = "vybe"
     const val githubRepositoryUrl =
         "https://github.com/$githubRepositoryOwner/$githubRepositoryName"
+
+    // Vybe is a fork of Symphony — kept separate from githubRepositoryUrl
+    // above so the update-checker (which used to point here, comparing
+    // Vybe's own version string against Symphony's releases) never gets
+    // pointed at the wrong repo again. Only referenced from the Credits page.
+    const val symphonyRepositoryUrl = "https://github.com/zyrouge/symphony"
 
     const val version = "v${BuildConfig.VERSION_NAME}"
     var latestVersion: String? = null
     const val githubLatestReleaseUrl = "$githubRepositoryUrl/releases/latest"
     const val githubIssuesUrl = "$githubRepositoryUrl/issues"
-    const val discordUrl = "https://discord.gg/5k9Hdq7ycm "
-    const val redditUrl = "https://reddit.com/r/symphony_app"
-    const val contributingUrl = "$githubRepositoryUrl#contributing"
 
     const val packageName = "xyz.hanstech.vybe"
-    const val izzyOnDroidUrl = "https://apt.izzysoft.de/fdroid/index/apk/$packageName"
-    const val fdroidUrl = "https://f-droid.org/en/packages/$packageName"
-    const val playStoreUrl = "https://play.google.com/store/apps/details?id=$packageName"
 
     fun isNightlyBuild() = version.contains("-nightly")
 

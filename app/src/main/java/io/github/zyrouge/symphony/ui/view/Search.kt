@@ -162,6 +162,13 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
 
     LaunchedEffect(LocalContext.current) {
         textFieldFocusRequester.requestFocus()
+        // `results` is plain `remember`, so it doesn't survive leaving
+        // composition (e.g. navigating to NowPlaying and back) the way
+        // `terms` does via `rememberSaveable`. Re-run the search for
+        // whatever's already typed so the list isn't empty on return.
+        if (terms.isNotEmpty() && results == null) {
+            setTerms(terms)
+        }
         snapshotFlow { configuration.orientation }.collect {
             setTerms(terms)
         }

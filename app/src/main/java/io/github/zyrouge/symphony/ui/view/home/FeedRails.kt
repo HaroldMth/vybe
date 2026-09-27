@@ -1,6 +1,8 @@
 package io.github.zyrouge.symphony.ui.view.home
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,7 +25,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import io.github.zyrouge.symphony.services.home.FeedSection
 import io.github.zyrouge.symphony.ui.components.PlaylistTile
+import io.github.zyrouge.symphony.ui.components.SongDropdownMenu
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import io.github.zyrouge.symphony.ui.theme.ThemeColors
@@ -114,15 +121,21 @@ private fun HorizontalRail(spacing: Int, content: @Composable RowScope.() -> Uni
 }
 
 /** Clicking a card plays that song and then keeps going with related songs (endless queue). */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SongCardsRail(context: ViewContext, songIds: List<String>, ranked: Boolean) {
+    val favoriteSongIds by context.symphony.groove.playlist.favorites.collectAsState()
     HorizontalRail(spacing = 14) {
         songIds.take(12).forEachIndexed { index, songId ->
             val song = context.symphony.groove.song.get(songId) ?: return@forEachIndexed
+            var showOptionsMenu by remember(songId) { mutableStateOf(false) }
             Column(
                 modifier = Modifier
                     .width(128.dp)
-                    .clickable { context.symphony.radio.shorty.playQueue(songId) }
+                    .combinedClickable(
+                        onClick = { context.symphony.radio.shorty.playQueue(songId) },
+                        onLongClick = { showOptionsMenu = true },
+                    )
             ) {
                 Box {
                     AsyncImage(
@@ -153,6 +166,13 @@ private fun SongCardsRail(context: ViewContext, songIds: List<String>, ranked: B
                             }
                         }
                     }
+                    SongDropdownMenu(
+                        context,
+                        song,
+                        isFavorite = favoriteSongIds.contains(song.id),
+                        expanded = showOptionsMenu,
+                        onDismissRequest = { showOptionsMenu = false },
+                    )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
@@ -177,47 +197,62 @@ private fun SongCardsRail(context: ViewContext, songIds: List<String>, ranked: B
 }
 
 /** Compact vertical list, used for the "Because you played ..." row. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SongRows(context: ViewContext, songIds: List<String>) {
+    val favoriteSongIds by context.symphony.groove.playlist.favorites.collectAsState()
     Column(
         modifier = Modifier.padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         songIds.take(5).forEach { songId ->
             val song = context.symphony.groove.song.get(songId) ?: return@forEach
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { context.symphony.radio.shorty.playQueue(songId) },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AsyncImage(
-                    song.createArtworkImageRequest(context.symphony).build(),
-                    null,
-                    contentScale = ContentScale.Crop,
+            var showOptionsMenu by remember(songId) { mutableStateOf(false) }
+            Box {
+                Row(
                     modifier = Modifier
-                        .size(52.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        song.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = { context.symphony.radio.shorty.playQueue(songId) },
+                            onLongClick = { showOptionsMenu = true },
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AsyncImage(
+                        song.createArtworkImageRequest(context.symphony).build(),
+                        null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(8.dp)),
                     )
-                    if (song.artists.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
                         Text(
-                            song.artists.joinToString(),
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            ),
+                            song.title,
+                            style = MaterialTheme.typography.bodyMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        if (song.artists.isNotEmpty()) {
+                            Text(
+                                song.artists.joinToString(),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
+                SongDropdownMenu(
+                    context,
+                    song,
+                    isFavorite = favoriteSongIds.contains(song.id),
+                    expanded = showOptionsMenu,
+                    onDismissRequest = { showOptionsMenu = false },
+                )
             }
         }
     }

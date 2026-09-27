@@ -10,6 +10,7 @@ import androidx.core.net.toUri
 import io.github.zyrouge.symphony.Symphony
 import io.github.zyrouge.symphony.services.groove.Song
 import io.github.zyrouge.symphony.utils.Logger
+import io.github.zyrouge.symphony.utils.SongJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -57,14 +58,33 @@ class DownloadManager(private val symphony: Symphony) {
     val states: StateFlow<Map<String, DownloadState>> = _states.asStateFlow()
 
     init {
-        prefs.all.forEach { (songId, uri) ->
-            if (uri is String && uri.isNotBlank()) {
-                localUris[songId] = uri
+        prefs.all.forEach { (key, value) ->
+            if (key.startsWith(META_PREFIX) || value !is String || value.isBlank()) {
+                return@forEach
             }
+            localUris[key] = value
         }
         _states.value = localUris.keys.associateWith {
             DownloadState(DownloadStatus.COMPLETED, 1f)
         }
+        // Downloaded songs live only as a songId->URI pair on disk; the actual
+        // Song (title/artist/artwork/etc.) normally comes from VybeCatalog's
+        // in-memory cache, which is only populated by whatever the home feed /
+        // charts / search happen to have fetched this session. On a cold start
+        // that cache is empty, so without this the Downloads screen silently
+        // drops every entry it can't resolve a Song for. Restore the snapshot
+        // taken at download time instead of depending on that cache.
+        localUris.keys.forEach { songId ->
+            readSongSnapshot(songId)?.let { song -> registerSong(song) }
+        }
+    }
+
+    private fun registerSong(song: Song) {
+        symphony.groove.albumArtist.onSong(song)
+        symphony.groove.album.onSong(song)
+        symphony.groove.artist.onSong(song)
+        symphony.groove.genre.onSong(song)
+        symphony.groove.song.onSong(song)
     }
 
     fun isDownloaded(songId: String) = localUris.containsKey(songId)
@@ -82,6 +102,10 @@ class DownloadManager(private val symphony: Symphony) {
         val current = _states.value[song.id]?.status
         if (current == DownloadStatus.QUEUED || current == DownloadStatus.DOWNLOADING) return
 
+        // Snapshot the metadata up front (not just on success) so a resumed or
+        // retried download still has something to show; it's harmless to keep
+        // around and gets cleaned up by removeDownload regardless of outcome.
+        writeSongSnapshot(song)
         setState(song.id, DownloadState(DownloadStatus.QUEUED, 0f))
         coroutineScope.launch {
             try {
@@ -99,7 +123,7 @@ class DownloadManager(private val symphony: Symphony) {
 
     fun removeDownload(songId: String) {
         val uriStr = localUris.remove(songId) ?: return
-        prefs.edit().remove(songId).apply()
+        prefs.edit().remove(songId).remove(META_PREFIX + songId).apply()
         setState(songId, DownloadState(DownloadStatus.NONE, 0f))
         try {
             val uri = uriStr.toUri()
@@ -110,6 +134,24 @@ class DownloadManager(private val symphony: Symphony) {
             }
         } catch (err: Exception) {
             Logger.error("DownloadManager", "failed deleting download for $songId", err)
+        }
+    }
+
+    private fun writeSongSnapshot(song: Song) {
+        try {
+            prefs.edit().putString(META_PREFIX + song.id, SongJson.encode(song)).apply()
+        } catch (err: Exception) {
+            Logger.error("DownloadManager", "failed snapshotting metadata for ${song.id}", err)
+        }
+    }
+
+    private fun readSongSnapshot(songId: String): Song? {
+        val raw = prefs.getString(META_PREFIX + songId, null) ?: return null
+        return try {
+            SongJson.decode(raw)
+        } catch (err: Exception) {
+            Logger.error("DownloadManager", "failed restoring metadata for $songId", err)
+            null
         }
     }
 
@@ -204,5 +246,6 @@ class DownloadManager(private val symphony: Symphony) {
 
     companion object {
         private const val DEFAULT_BUFFER_SIZE = 8 * 1024
+        private const val META_PREFIX = "meta_"
     }
 }

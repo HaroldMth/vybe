@@ -91,6 +91,9 @@ fun BaseView(symphony: Symphony, activity: MainActivity) {
                 baseComposable<SettingsViewRoute> {
                     SettingsView(context, it.toRoute())
                 }
+                baseComposable<CreditsViewRoute> {
+                    CreditsView(context)
+                }
                 baseComposable<AppearanceSettingsViewRoute> {
                     AppearanceSettingsView(context)
                 }
