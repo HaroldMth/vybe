@@ -25,8 +25,31 @@ import io.github.zyrouge.symphony.utils.HttpClient
  * cost.
  */
 class VybeApplication : Application(), ImageLoaderFactory {
+    /**
+     * Same connection pool/dispatcher as the shared client (newBuilder()
+     * reuses them), but rewrites cache headers on *image* responses only.
+     * Coil's disk cache honors HTTP caching headers, so if the artwork
+     * host answers with no-store / no-cache / a tiny max-age, every cover
+     * gets re-downloaded on every launch and every screen. Cover art at a
+     * given URL doesn't change, so pin it for 30 days. Audio/API traffic
+     * goes through the untouched shared client.
+     */
+    private val imageHttpClient by lazy {
+        HttpClient.newBuilder()
+            .addNetworkInterceptor { chain ->
+                val response = chain.proceed(chain.request())
+                if (!response.isSuccessful) return@addNetworkInterceptor response
+                response.newBuilder()
+                    .removeHeader("Pragma")
+                    .removeHeader("Expires")
+                    .header("Cache-Control", "public, max-age=2592000")
+                    .build()
+            }
+            .build()
+    }
+
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
-        .okHttpClient(HttpClient)
+        .okHttpClient(imageHttpClient)
         .memoryCache {
             MemoryCache.Builder(this)
                 .maxSizePercent(0.25)

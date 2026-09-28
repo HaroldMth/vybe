@@ -91,9 +91,6 @@ class PlaylistRepository(private val symphony: Symphony) {
                 emitUpdateId()
                 emitCount()
             }
-            if (!cache.containsKey(FAVORITE_PLAYLIST)) {
-                add(getFavorites())
-            }
         } catch (_: FileNotFoundException) {
         } catch (err: Exception) {
             Logger.error("PlaylistRepository", "fetch failed", err)

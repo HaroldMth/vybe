@@ -14,6 +14,7 @@ import io.github.zyrouge.symphony.services.api.VybePlaylist
 import io.github.zyrouge.symphony.services.api.VybeSearchData
 import io.github.zyrouge.symphony.services.api.VybeTrack
 import io.github.zyrouge.symphony.services.groove.repositories.PlaylistRepository
+import io.github.zyrouge.symphony.utils.ImagePrefetcher
 import io.github.zyrouge.symphony.utils.Logger
 import io.github.zyrouge.symphony.utils.concurrentSetOf
 import java.util.concurrent.ConcurrentHashMap
@@ -106,7 +107,16 @@ class VybeCatalog(private val symphony: Symphony) {
         )
     }
 
-    fun ingestTracks(tracks: List<VybeTrack>): List<Song> = tracks.map { ingestTrack(it) }
+    fun ingestTracks(tracks: List<VybeTrack>): List<Song> {
+        val songs = tracks.map { ingestTrack(it) }
+        // Warm the disk cache for the first covers of every batch (home rails,
+        // charts, search results) so they're already local when scrolled to.
+        ImagePrefetcher.prefetch(
+            symphony.applicationContext,
+            songs.take(PREFETCH_COVERS_PER_BATCH).map { it.coverFile },
+        )
+        return songs
+    }
 
     fun ingestTrack(track: VybeTrack): Song = synchronized(ingestLock) {
         val existingId = "vybe_${track.id}"
@@ -324,6 +334,10 @@ class VybeCatalog(private val symphony: Symphony) {
             val id = short.id?.takeIf { it.isNotBlank() } ?: return@forEach
             artistIdByName[name] = id
         }
+    }
+
+    companion object {
+        private const val PREFETCH_COVERS_PER_BATCH = 24
     }
 
     data class SearchIds(

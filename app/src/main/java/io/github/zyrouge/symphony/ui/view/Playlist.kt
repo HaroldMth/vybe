@@ -1,16 +1,21 @@
 package io.github.zyrouge.symphony.ui.view
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,10 +34,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import io.github.zyrouge.symphony.services.groove.repositories.PlaylistRepository
 import io.github.zyrouge.symphony.ui.components.AnimatedNowPlayingBottomBar
 import io.github.zyrouge.symphony.ui.components.IconTextBody
 import io.github.zyrouge.symphony.ui.components.PlaylistDropdownMenu
+import io.github.zyrouge.symphony.ui.components.PlaylistManageSongsDialog
 import io.github.zyrouge.symphony.ui.components.SongList
 import io.github.zyrouge.symphony.ui.components.SongListType
 import io.github.zyrouge.symphony.ui.components.TopAppBarMinimalTitle
@@ -68,6 +75,7 @@ fun PlaylistView(context: ViewContext, route: PlaylistViewRoute) {
         derivedStateOf { context.symphony.groove.playlist.get(route.playlistId) != null }
     }
     var showOptionsMenu by remember { mutableStateOf(false) }
+    var showManageSongs by remember { mutableStateOf(false) }
     val isFavoritesPlaylist by remember(playlist) {
         derivedStateOf {
             playlist?.let { context.symphony.groove.playlist.isFavoritesPlaylist(it) } == true
@@ -143,6 +151,30 @@ fun PlaylistView(context: ViewContext, route: PlaylistViewRoute) {
                     ) {
                         CircularProgressIndicator()
                     }
+                    // Fresh, user-made playlist: point straight at adding songs
+                    // instead of leaving an empty list with no obvious next step.
+                    isViable && songIds.isEmpty() && playlist?.let {
+                        it.isNotLocal && !context.symphony.groove.playlist.isRemotePlaylist(it)
+                    } == true -> Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.QueueMusic,
+                            null,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                        Text("This playlist is empty")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        ElevatedButton(onClick = { showManageSongs = true }) {
+                            Icon(Icons.Filled.Add, null)
+                            Text("  Add songs")
+                        }
+                    }
+
                     isViable -> SongList(
                         context,
                         songIds = songIds,
@@ -183,6 +215,20 @@ fun PlaylistView(context: ViewContext, route: PlaylistViewRoute) {
             AnimatedNowPlayingBottomBar(context)
         }
     )
+
+    if (showManageSongs) {
+        playlist?.let { current ->
+            PlaylistManageSongsDialog(
+                context,
+                selectedSongIds = songIds,
+                onDone = { ids ->
+                    showManageSongs = false
+                    context.symphony.groove.playlist.update(current.id, ids)
+                    incrementUpdateCounter()
+                },
+            )
+        }
+    }
 }
 
 @Composable

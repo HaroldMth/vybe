@@ -210,7 +210,14 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
         if (nextId == queue.currentSongId) {
             return
         }
-        symphony.groove.song.get(nextId)?.let { symphony.streamCache.prefetch(it) }
+        symphony.groove.song.get(nextId)?.let {
+            symphony.streamCache.prefetch(it)
+            io.github.zyrouge.symphony.utils.ImagePrefetcher.prefetch(
+                symphony.applicationContext,
+                listOf(it.coverFile),
+                sizePx = 768, // now-playing art is shown large
+            )
+        }
     }
 
     fun resume() = start()

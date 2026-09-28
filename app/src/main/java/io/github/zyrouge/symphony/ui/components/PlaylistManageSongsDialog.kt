@@ -22,6 +22,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -34,6 +35,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
+import io.github.zyrouge.symphony.utils.Logger
+import kotlinx.coroutines.delay
 
 @Composable
 fun PlaylistManageSongsDialog(
@@ -49,6 +52,24 @@ fun PlaylistManageSongsDialog(
             context.symphony.groove.song.search(allSongIds, terms, limit = -1)
                 .map { it.entity }
                 .sortedBy { !selectedSongIds.contains(it) }
+        }
+    }
+
+    // The picker used to only search songs already sitting in the in-memory
+    // cache (whatever home/charts/search happened to load), so you couldn't
+    // add anything from the actual catalog. Debounce-search the Vybe API and
+    // ingest the hits; groove.song.all updates reactively and the list above
+    // picks them up.
+    LaunchedEffect(terms) {
+        val query = terms.trim()
+        if (query.length < 2) return@LaunchedEffect
+        delay(400)
+        try {
+            context.symphony.vybeApi.search(query)?.let {
+                context.symphony.groove.catalog.ingestSearch(it)
+            }
+        } catch (err: Exception) {
+            Logger.error("PlaylistManageSongs", "remote search failed", err)
         }
     }
 

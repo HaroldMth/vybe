@@ -503,7 +503,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
             }
         },
         bottomBar = {
-            AnimatedNowPlayingBottomBar(context)
+            AnimatedNowPlayingBottomBar(context, imeAware = true)
         }
     )
 }

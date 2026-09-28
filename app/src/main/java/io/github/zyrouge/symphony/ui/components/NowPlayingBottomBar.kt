@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -71,7 +72,11 @@ import io.github.zyrouge.symphony.utils.runIfOrThis
 import kotlin.math.absoluteValue
 
 @Composable
-fun AnimatedNowPlayingBottomBar(context: ViewContext, insetPadding: Boolean = true) {
+fun AnimatedNowPlayingBottomBar(
+    context: ViewContext,
+    insetPadding: Boolean = true,
+    imeAware: Boolean = false,
+) {
     val visible = remember {
         MutableTransitionState(false).apply {
             // Start the animation immediately.
@@ -87,7 +92,7 @@ fun AnimatedNowPlayingBottomBar(context: ViewContext, insetPadding: Boolean = tr
         ) + fadeIn(animationSpec = nowPlayingBottomBarEnterAnimationSpec()),
         exit = fadeOut(),
     ) {
-        NowPlayingBottomBar(context, insetPadding)
+        NowPlayingBottomBar(context, insetPadding, imeAware)
     }
 }
 
@@ -96,7 +101,11 @@ private fun <T> nowPlayingBottomBarEnterAnimationSpec() = TransitionDurations.No
 )
 
 @Composable
-fun NowPlayingBottomBar(context: ViewContext, insetPadding: Boolean = true) {
+fun NowPlayingBottomBar(
+    context: ViewContext,
+    insetPadding: Boolean = true,
+    imeAware: Boolean = false,
+) {
     val queue by context.symphony.radio.observatory.queue.collectAsState()
     val queueIndex by context.symphony.radio.observatory.queueIndex.collectAsState()
     val currentPlayingSong by remember(queue, queueIndex) {
@@ -112,7 +121,15 @@ fun NowPlayingBottomBar(context: ViewContext, insetPadding: Boolean = true) {
     val seekForwardDuration by context.symphony.settings.seekForwardDuration.flow.collectAsState()
 
     AnimatedContent(
-        modifier = Modifier.fillMaxWidth(),
+        // imePadding() rides the WindowInsetsAnimation the system already runs
+        // when the keyboard opens/closes, so on the Search screen the mini
+        // player slides up/down in sync with the keyboard instead of just
+        // jumping to wherever adjustResize leaves it. Only opted into on
+        // screens with a search field -- everywhere else there's no keyboard
+        // to react to, so it's a no-op modifier there.
+        modifier = Modifier
+            .fillMaxWidth()
+            .runIfOrThis(imeAware) { imePadding() },
         label = "c-now-playing-container",
         targetState = currentPlayingSong,
         contentKey = { it != null },
