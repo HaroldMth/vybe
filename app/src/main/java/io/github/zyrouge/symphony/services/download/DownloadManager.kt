@@ -74,6 +74,15 @@ class DownloadManager(private val symphony: Symphony) {
         // that cache is empty, so without this the Downloads screen silently
         // drops every entry it can't resolve a Song for. Restore the snapshot
         // taken at download time instead of depending on that cache.
+        rehydrate()
+    }
+
+    /**
+     * Re-registers every downloaded song's snapshot into the groove caches.
+     * Runs at startup and again after each library (re)scan/reset, since a
+     * reset clears those in-memory caches and nothing else would put them back.
+     */
+    fun rehydrate() {
         localUris.keys.forEach { songId ->
             readSongSnapshot(songId)?.let { song -> registerSong(song) }
         }

@@ -26,3 +26,19 @@ fun <T> List<T>.mutate(fn: MutableList<T>.() -> Unit): List<T> {
 }
 
 fun <T> concurrentListOf(): MutableList<T> = CopyOnWriteArrayList(mutableListOf<T>())
+
+/**
+ * Stable per-item keys for lazy lists that may contain duplicates: the id
+ * itself for its first occurrence, `id#1`, `id#2`... after. Unlike an
+ * index-based key, a key doesn't change when other items are inserted or
+ * removed above it, which is what lets Modifier.animateItem() animate moves
+ * and removals instead of treating every shifted row as new. Unlike a bare
+ * id, duplicates (the same song twice in a queue) can't crash the list.
+ */
+fun List<String>.uniqueKeys(): List<String> {
+    val seen = HashMap<String, Int>()
+    return map { id ->
+        val n = seen.merge(id, 1, Int::plus)!! - 1
+        if (n == 0) id else "$id#$n"
+    }
+}

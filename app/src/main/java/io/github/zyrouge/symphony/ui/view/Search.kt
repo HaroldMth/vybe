@@ -572,10 +572,12 @@ private fun SearchHistoryContent(context: ViewContext, onTermClick: (String) -> 
             item {
                 SideHeading("Recently played")
             }
-            items(recentlyPlayedIds) { songId ->
+            items(recentlyPlayedIds, key = { "played-$it" }) { songId ->
                 context.symphony.groove.song.get(songId)?.let { song ->
-                    SongCard(context, song) {
-                        context.symphony.radio.shorty.playQueue(song.id)
+                    Box(modifier = Modifier.animateItem()) {
+                        SongCard(context, song) {
+                            context.symphony.radio.shorty.playQueue(song.id)
+                        }
                     }
                 }
             }

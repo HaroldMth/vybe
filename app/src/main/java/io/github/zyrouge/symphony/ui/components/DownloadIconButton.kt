@@ -1,6 +1,15 @@
 package io.github.zyrouge.symphony.ui.components
 
 import android.widget.Toast
+import io.github.zyrouge.symphony.ui.helpers.haptic
+import io.github.zyrouge.symphony.ui.helpers.Haptic
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.Crossfade
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -57,6 +66,7 @@ fun DownloadIconButton(
     }
 
     fun startDownload() {
+        context.haptic(Haptic.Toggle)
         val required = context.symphony.permission.getStoragePermissions()
         if (required.isEmpty() || context.symphony.permission.hasStoragePermissions(context.activity)) {
             context.symphony.downloader.download(song)
@@ -65,9 +75,31 @@ fun DownloadIconButton(
         }
     }
 
-    when {
-        downloaded -> {
-            IconButton(onClick = { /* already downloaded */ }) {
+    val kind = when {
+        downloaded -> DownloadKind.Done
+        state?.status == DownloadStatus.QUEUED ||
+            state?.status == DownloadStatus.DOWNLOADING -> DownloadKind.Busy
+        else -> DownloadKind.Idle
+    }
+
+    // Buzz once when a download you watched start actually finishes.
+    var wasBusy by remember { mutableStateOf(false) }
+    LaunchedEffect(kind) {
+        if (kind == DownloadKind.Busy) wasBusy = true
+        if (kind == DownloadKind.Done && wasBusy) {
+            wasBusy = false
+            context.haptic(Haptic.Success)
+        }
+    }
+
+    // Glide between the states (cloud -> ring -> check) instead of snapping.
+    Crossfade(
+        targetState = kind,
+        animationSpec = tween(220),
+        label = "download-button-state",
+    ) { target ->
+        when (target) {
+            DownloadKind.Done -> IconButton(onClick = { /* already downloaded */ }) {
                 Icon(
                     Icons.Filled.CloudDone,
                     null,
@@ -75,23 +107,28 @@ fun DownloadIconButton(
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
-        }
 
-        state?.status == DownloadStatus.QUEUED || state?.status == DownloadStatus.DOWNLOADING -> {
-            IconButton(onClick = { /* downloading */ }) {
+            DownloadKind.Busy -> IconButton(onClick = { /* downloading */ }) {
                 Box(contentAlignment = Alignment.Center) {
+                    // Progress arrives in coarse steps; tween between them so
+                    // the ring sweeps smoothly instead of jumping.
+                    val raw = state?.progress ?: 0f
+                    val goal = if (raw > 0f) raw else 0.05f
+                    val animated by animateFloatAsState(
+                        targetValue = goal,
+                        animationSpec = tween(350),
+                        label = "download-progress",
+                    )
                     CircularProgressIndicator(
-                        progress = { if (state.progress > 0f) state.progress else 0.05f },
+                        progress = { animated },
                         modifier = Modifier.size(22.dp),
                         strokeWidth = 2.dp,
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
-        }
 
-        else -> {
-            IconButton(onClick = { startDownload() }) {
+            DownloadKind.Idle -> IconButton(onClick = { startDownload() }) {
                 Icon(
                     Icons.Filled.Download,
                     null,
@@ -102,3 +139,5 @@ fun DownloadIconButton(
         }
     }
 }
+
+private enum class DownloadKind { Idle, Busy, Done }

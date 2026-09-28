@@ -1,5 +1,7 @@
 package io.github.zyrouge.symphony.ui.view.nowPlaying
 
+import io.github.zyrouge.symphony.ui.helpers.haptic
+import io.github.zyrouge.symphony.ui.helpers.Haptic
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -73,6 +75,7 @@ fun NowPlayingAppBar(context: ViewContext, data: NowPlayingData, states: NowPlay
         // Favorite
         IconButton(
             onClick = {
+                context.haptic(Haptic.Toggle)
                 context.symphony.groove.playlist.run {
                     if (isFavorite) unfavorite(data.song.id)
                     else favorite(data.song.id)

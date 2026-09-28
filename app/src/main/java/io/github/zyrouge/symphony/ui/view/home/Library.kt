@@ -153,7 +153,7 @@ fun LibraryView(context: ViewContext) {
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(favoriteSongIds.take(12).toList()) { songId ->
+                    items(favoriteSongIds.take(12).toList(), key = { it }) { songId ->
                         context.symphony.groove.song.get(songId)?.let { song ->
                             SongCompactTile(context, songId = songId, title = song.title, subtitle = song.artists.joinToString(), artworkRequest = song.createArtworkImageRequest(context.symphony).build()) {
                                 context.symphony.radio.shorty.playQueue(songId)
@@ -192,7 +192,7 @@ fun LibraryView(context: ViewContext) {
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(playlists) { playlist ->
+                    items(playlists, key = { it.id }) { playlist ->
                         PlaylistCompactTile(
                             context,
                             title = playlist.title,

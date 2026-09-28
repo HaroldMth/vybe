@@ -1,5 +1,8 @@
 package io.github.zyrouge.symphony.ui.view.home
 
+import io.github.zyrouge.symphony.ui.helpers.haptic
+import io.github.zyrouge.symphony.ui.helpers.pressScaleClickable
+import io.github.zyrouge.symphony.ui.helpers.Haptic
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -132,9 +135,12 @@ private fun SongCardsRail(context: ViewContext, songIds: List<String>, ranked: B
             Column(
                 modifier = Modifier
                     .width(128.dp)
-                    .combinedClickable(
+                    .pressScaleClickable(
+                        onLongClick = {
+                            context.haptic(Haptic.LongPress)
+                            showOptionsMenu = true
+                        },
                         onClick = { context.symphony.radio.shorty.playQueue(songId) },
-                        onLongClick = { showOptionsMenu = true },
                     )
             ) {
                 Box {
@@ -212,9 +218,13 @@ private fun SongRows(context: ViewContext, songIds: List<String>) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .combinedClickable(
+                        .pressScaleClickable(
+                            pressedScale = 0.98f,
+                            onLongClick = {
+                                context.haptic(Haptic.LongPress)
+                                showOptionsMenu = true
+                            },
                             onClick = { context.symphony.radio.shorty.playQueue(songId) },
-                            onLongClick = { showOptionsMenu = true },
                         ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

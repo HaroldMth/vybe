@@ -1,5 +1,7 @@
 package io.github.zyrouge.symphony.ui.components
 
+import io.github.zyrouge.symphony.ui.helpers.haptic
+import io.github.zyrouge.symphony.ui.helpers.Haptic
 import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import android.content.Intent
 import android.widget.Toast
@@ -91,7 +93,10 @@ fun SongCard(
             .fillMaxWidth()
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = { showOptionsMenu = true },
+                onLongClick = {
+                    context.haptic(Haptic.LongPress)
+                    showOptionsMenu = true
+                },
             ),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
     ) {
@@ -163,6 +168,7 @@ fun SongCard(
                         IconButton(
                             modifier = Modifier.offset(4.dp, 0.dp),
                             onClick = {
+                                context.haptic(Haptic.Toggle)
                                 context.symphony.groove.playlist.unfavorite(song.id)
                             }
                         ) {
@@ -243,6 +249,7 @@ fun SongDropdownMenu(
             },
             onClick = {
                 onDismissRequest()
+                context.haptic(Haptic.Toggle)
                 context.symphony.groove.playlist.run {
                     when {
                         isFavorite -> unfavorite(song.id)

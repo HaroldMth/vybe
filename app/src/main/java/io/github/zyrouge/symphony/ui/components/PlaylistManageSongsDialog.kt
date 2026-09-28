@@ -143,8 +143,9 @@ fun PlaylistManageSongsDialog(
                                 .height(this@BoxWithConstraints.maxHeight)
                                 .padding(bottom = 4.dp)
                         ) {
-                            items(songIds) { songId ->
+                            items(songIds, key = { it }) { songId ->
                                 context.symphony.groove.song.get(songId)?.let { song ->
+                                    Box(modifier = Modifier.animateItem()) {
                                     SongCard(
                                         context,
                                         song = song,
@@ -168,6 +169,7 @@ fun PlaylistManageSongsDialog(
 
                                             else -> nSelectedSongIds.add(song.id)
                                         }
+                                    }
                                     }
                                 }
                             }

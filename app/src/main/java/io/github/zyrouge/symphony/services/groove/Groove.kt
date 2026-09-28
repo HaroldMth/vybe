@@ -40,6 +40,10 @@ class Groove(private val symphony: Symphony) : Symphony.Hooks {
         exposer.setUpdating(true)
         try {
             playlist.fetch()
+            // reset() wipes the in-memory song caches; put downloaded and
+            // recently-played songs back so they don't vanish until restart.
+            symphony.downloader.rehydrate()
+            symphony.history.rehydrate()
             catalog.bootstrap()
         } catch (err: Exception) {
             io.github.zyrouge.symphony.utils.Logger.error("Groove", "catalog fetch failed", err)

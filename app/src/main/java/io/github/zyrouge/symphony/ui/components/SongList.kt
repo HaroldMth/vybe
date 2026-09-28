@@ -1,5 +1,7 @@
 package io.github.zyrouge.symphony.ui.components
 
+import io.github.zyrouge.symphony.utils.uniqueKeys
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
@@ -114,12 +116,14 @@ fun SongList(
                         modifier = Modifier.drawScrollBar(lazyListState)
                     ) {
                         leadingContent?.invoke(this)
+                        val itemKeys = sortedSongIds.uniqueKeys()
                         itemsIndexed(
                             sortedSongIds,
-                            key = { i, x -> "$i-$x" },
+                            key = { i, _ -> itemKeys[i] },
                             contentType = { _, _ -> Groove.Kind.SONG }
                         ) { i, songId ->
                             context.symphony.groove.song.get(songId)?.let { song ->
+                                Box(modifier = Modifier.animateItem()) {
                                 SongCard(
                                     context,
                                     song = song,
@@ -136,6 +140,7 @@ fun SongList(
                                         sortedSongIds,
                                         Radio.PlayOptions(index = i)
                                     )
+                                }
                                 }
                             }
                         }

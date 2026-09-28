@@ -230,7 +230,7 @@ fun SongTreeListContent(
             }
 
             if (show) {
-                items(childSongIds) { songId ->
+                items(childSongIds, key = { it }) { songId ->
                     context.symphony.groove.song.get(songId)?.let { song ->
                         val isCurrentPlaying by remember(song, currentPlayingSongId) {
                             derivedStateOf { song.id == currentPlayingSongId }

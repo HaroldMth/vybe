@@ -50,7 +50,7 @@ fun AddToPlaylistDialog(
             when {
                 playlists.isEmpty() -> SubtleCaptionText(context.symphony.t.NoInAppPlaylistsFound)
                 else -> LazyColumn(modifier = Modifier.padding(bottom = 4.dp)) {
-                    items(playlists) { playlist ->
+                    items(playlists, key = { it.id }) { playlist ->
                         val playlistSongIds = playlist.getSongIds(context.symphony)
 
                         GenericGrooveCard(

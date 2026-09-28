@@ -33,6 +33,11 @@ class HistoryManager(private val symphony: Symphony) {
         // that isn't currently trending, so the "Recently played" row would
         // silently render nothing under its own header. Snapshot metadata
         // the same way downloads do, and restore it up front.
+        rehydrate()
+    }
+
+    /** Runs at startup and after every library reset/rescan (see Groove.fetch). */
+    fun rehydrate() {
         _recentlyPlayed.value.forEach { songId ->
             readSongSnapshot(songId)?.let { song -> registerSong(song) }
         }
