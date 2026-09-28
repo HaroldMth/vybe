@@ -1,5 +1,5 @@
 package io.github.zyrouge.symphony.ui.components
-
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.filled.Nightlight
