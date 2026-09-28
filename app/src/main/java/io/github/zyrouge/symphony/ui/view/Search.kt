@@ -107,12 +107,15 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
 
     fun isChipSelected(kind: Groove.Kind) = selectedChip == null || selectedChip == kind
 
-    var currentTermsRoutine: Job? = null
+    // Must survive recomposition. It used to be a plain local `var`, reset to null
+    // on every keystroke, so cancel() never cancelled the previous search and
+    // every prefix (b, be, bel...) ran to completion and overwrote the results.
+    val termsRoutine = remember { arrayOfNulls<Job>(1) }
     fun setTerms(nTerms: String) {
         terms = nTerms
         isSearching = true
-        currentTermsRoutine?.cancel()
-        currentTermsRoutine = coroutineScope.launch {
+        termsRoutine[0]?.cancel()
+        termsRoutine[0] = coroutineScope.launch {
             withContext(Dispatchers.IO) {
                 delay(250)
                 val songIds = mutableListOf<String>()
@@ -140,16 +143,22 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                         }
                     }
 
-                    results = SearchResult(
-                        songIds = songIds,
-                        artistNames = artistNames,
-                        albumIds = albumIds,
-                        albumArtistNames = albumArtistNames,
-                        genreNames = genreNames,
-                        playlistIds = playlistIds,
-                    )
+                    // Belt and braces: never let a slower, older query land on top
+                    // of what's currently typed.
+                    if (terms == nTerms) {
+                        results = SearchResult(
+                            songIds = songIds,
+                            artistNames = artistNames,
+                            albumIds = albumIds,
+                            albumArtistNames = albumArtistNames,
+                            genreNames = genreNames,
+                            playlistIds = playlistIds,
+                        )
+                    }
                 }
-                isSearching = false
+                if (terms == nTerms) {
+                    isSearching = false
+                }
             }
         }
     }

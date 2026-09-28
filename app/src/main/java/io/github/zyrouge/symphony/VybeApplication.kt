@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony
 
+import io.github.zyrouge.symphony.utils.DeezerImageInterceptor
 import android.app.Application
 import coil.ImageLoader
 import coil.ImageLoaderFactory
@@ -60,6 +61,9 @@ class VybeApplication : Application(), ImageLoaderFactory {
                 .directory(cacheDir.resolve("image_cache"))
                 .maxSizeBytes(256L * 1024 * 1024) // 256MB
                 .build()
+        }
+        .components {
+            add(DeezerImageInterceptor())
         }
         .crossfade(true)
         .apply {

@@ -114,6 +114,7 @@ class VybeCatalog(private val symphony: Symphony) {
         ImagePrefetcher.prefetch(
             symphony.applicationContext,
             songs.take(PREFETCH_COVERS_PER_BATCH).map { it.coverFile },
+            sizePx = 300, // lands in the 250px bucket rows/cards actually request
         )
         return songs
     }

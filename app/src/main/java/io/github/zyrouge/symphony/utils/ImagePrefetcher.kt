@@ -34,7 +34,7 @@ object ImagePrefetcher {
         }
     )
 
-    fun prefetch(context: Context, urls: Collection<String?>, sizePx: Int = 384) {
+    fun prefetch(context: Context, urls: Collection<String?>, sizePx: Int = 300) {
         val loader = context.imageLoader
         urls.forEach { url ->
             if (url.isNullOrBlank()) return@forEach

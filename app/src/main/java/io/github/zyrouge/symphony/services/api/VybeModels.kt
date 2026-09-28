@@ -79,7 +79,7 @@ data class VybeTrack(
         get() = artists?.primary?.mapNotNull { it.name }?.toSet() ?: setOf("Unknown Artist")
 
     val coverUrl: String?
-        get() = image?.lastOrNull()?.url ?: image?.firstOrNull()?.url
+        get() = image?.firstOrNull { it.quality == "large" }?.url ?: image?.lastOrNull()?.url ?: image?.firstOrNull()?.url
 }
 
 @Serializable
@@ -104,7 +104,7 @@ data class VybeArtist(
     val externalStats: VybeArtistStats? = null,
 ) {
     val coverUrl: String?
-        get() = image?.lastOrNull()?.url ?: image?.firstOrNull()?.url
+        get() = image?.firstOrNull { it.quality == "large" }?.url ?: image?.lastOrNull()?.url ?: image?.firstOrNull()?.url
 
     /** Formatted listener count, e.g. "2.1M listeners" */
     val listenersFormatted: String?
@@ -136,7 +136,7 @@ data class VybeAlbum(
     val description: String? = null,
 ) {
     val coverUrl: String?
-        get() = image?.lastOrNull()?.url ?: image?.firstOrNull()?.url
+        get() = image?.firstOrNull { it.quality == "large" }?.url ?: image?.lastOrNull()?.url ?: image?.firstOrNull()?.url
 
     val artistName: String
         get() = artists?.primary?.firstOrNull()?.name ?: "Unknown Artist"
@@ -163,7 +163,7 @@ data class VybePlaylist(
     val creator: String? = null,
 ) {
     val coverUrl: String?
-        get() = image?.lastOrNull()?.url ?: image?.firstOrNull()?.url
+        get() = image?.firstOrNull { it.quality == "large" }?.url ?: image?.lastOrNull()?.url ?: image?.firstOrNull()?.url
 }
 
 @Serializable

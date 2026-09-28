@@ -14,9 +14,22 @@ import kotlinx.serialization.json.put
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
+import java.io.IOException
+import okhttp3.Response
+import okhttp3.Callback
+import okhttp3.Call
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
 import okhttp3.RequestBody.Companion.toRequestBody
 
 class VybeApiClient(private val symphony: Symphony) {
+    private companion object {
+        const val SEARCH_CACHE_TTL_MS = 5 * 60 * 1000L
+    }
+
     @PublishedApi
     internal val json = Json {
         ignoreUnknownKeys = true
@@ -38,6 +51,27 @@ class VybeApiClient(private val symphony: Symphony) {
         return "https://vybe-api27.onrender.com/api"
     }
 
+    /**
+     * Enqueue instead of the blocking execute(): when the calling coroutine is
+     * cancelled the in-flight HTTP call is aborted too, so a stale search stops
+     * eating bandwidth on a slow connection the moment the user types on.
+     */
+    @PublishedApi
+    internal suspend fun executeCancellable(request: Request): Response =
+        suspendCancellableCoroutine { cont ->
+            val call = httpClient.newCall(request)
+            cont.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (cont.isActive) cont.resumeWithException(e)
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    if (cont.isActive) cont.resume(response) else response.close()
+                }
+            })
+        }
+
     suspend inline fun <reified T> fetch(endpoint: String): T? = withContext(Dispatchers.IO) {
         try {
             val baseUrl = getBaseUrl()
@@ -51,7 +85,7 @@ class VybeApiClient(private val symphony: Symphony) {
                 .get()
                 .build()
 
-            httpClient.newCall(request).execute().use { response ->
+            executeCancellable(request).use { response ->
                 if (!response.isSuccessful) {
                     Logger.error("VybeApiClient", "HTTP Error ${response.code} for $url")
                     return@withContext null
@@ -61,6 +95,9 @@ class VybeApiClient(private val symphony: Symphony) {
                 if (env.success) env.data else null
             }
         } catch (err: Exception) {
+            // A cancelled search (user kept typing) must stay cancelled, not
+            // turn into a "successful" null result that overwrites the list.
+            currentCoroutineContext().ensureActive()
             Logger.error("VybeApiClient", "Fetch failed for $endpoint", err)
             null
         }
@@ -74,7 +111,7 @@ class VybeApiClient(private val symphony: Symphony) {
                 .post(body.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            httpClient.newCall(request).execute().use { response ->
+            executeCancellable(request).use { response ->
                 if (!response.isSuccessful) {
                     Logger.error("VybeApiClient", "HTTP Error ${response.code} for $url")
                     return@withContext null
@@ -84,6 +121,7 @@ class VybeApiClient(private val symphony: Symphony) {
                 if (env.success) env.data else null
             }
         } catch (err: Exception) {
+            currentCoroutineContext().ensureActive()
             Logger.error("VybeApiClient", "Post failed for $endpoint", err)
             null
         }
@@ -140,9 +178,24 @@ class VybeApiClient(private val symphony: Symphony) {
         return fetch("recommendations/tag/$encoded?limit=$limit")
     }
 
+    // Remember recent searches so backspacing / retyping a query is instant
+    // instead of another round trip.
+    private val searchCache = object : LinkedHashMap<String, Pair<Long, VybeSearchData>>(32, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, VybeSearchData>>?) =
+            size > 40
+    }
+
     suspend fun search(query: String): VybeSearchData? {
+        val key = query.trim().lowercase()
+        synchronized(searchCache) { searchCache[key] }?.let { (at, data) ->
+            if (System.currentTimeMillis() - at < SEARCH_CACHE_TTL_MS) return data
+        }
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")
-        return fetch("search?q=$encoded")
+        val data = fetch<VybeSearchData>("search?q=$encoded")
+        if (data != null) {
+            synchronized(searchCache) { searchCache[key] = System.currentTimeMillis() to data }
+        }
+        return data
     }
 
     suspend fun getSong(id: String): VybeTrack? = fetch("song/$id")
