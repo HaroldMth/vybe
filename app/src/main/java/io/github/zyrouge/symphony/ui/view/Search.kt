@@ -518,7 +518,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
 }
 
 @Composable
-private fun SearchHistoryContent(context: ViewContext, onTermClick: (String) -> Unit) {
+fun SearchHistoryContent(context: ViewContext, onTermClick: (String) -> Unit) {
     val recentSearches by context.symphony.history.recentSearches.collectAsState()
     val recentlyPlayedIds by context.symphony.history.recentlyPlayed.collectAsState()
 

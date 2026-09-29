@@ -82,12 +82,18 @@ fun EmbeddedSearchView(context: ViewContext) {
 
     fun isChipSelected(kind: Groove.Kind) = selectedChip == null || selectedChip == kind
 
-    var currentTermsRoutine: Job? = null
+    // Was a plain local var, reset to null on every recomposition -- so
+    // cancel() never actually cancelled the previous search and every
+    // keystroke's request ran to completion, each one overwriting whatever
+    // a later (faster-typed) keystroke had already shown. Same bug that was
+    // fixed in Search.kt, just never ported here -- and this is the file
+    // that's actually shown for the Search tab.
+    val termsRoutine = remember { arrayOfNulls<Job>(1) }
     fun setTerms(nTerms: String) {
         terms = nTerms
-        isSearching = true
-        currentTermsRoutine?.cancel()
-        currentTermsRoutine = coroutineScope.launch {
+        isSearching = nTerms.isNotEmpty()
+        termsRoutine[0]?.cancel()
+        termsRoutine[0] = coroutineScope.launch {
             withContext(Dispatchers.IO) {
                 delay(250)
                 val songIds = mutableListOf<String>()
@@ -106,16 +112,25 @@ fun EmbeddedSearchView(context: ViewContext) {
                         if (isChipSelected(Groove.Kind.ALBUM)) albumIds.addAll(ingested.albumIds)
                         if (isChipSelected(Groove.Kind.PLAYLIST)) playlistIds.addAll(ingested.playlistIds)
                     }
-                    results = EmbeddedSearchResult(
-                        songIds = songIds,
-                        artistNames = artistNames,
-                        albumIds = albumIds,
-                        albumArtistNames = albumArtistNames,
-                        genreNames = genreNames,
-                        playlistIds = playlistIds,
-                    )
+                    if (terms == nTerms) {
+                        results = EmbeddedSearchResult(
+                            songIds = songIds,
+                            artistNames = artistNames,
+                            albumIds = albumIds,
+                            albumArtistNames = albumArtistNames,
+                            genreNames = genreNames,
+                            playlistIds = playlistIds,
+                        )
+                        if (songIds.isNotEmpty() || artistNames.isNotEmpty() || albumIds.isNotEmpty()) {
+                            context.symphony.history.addSearch(nTerms)
+                        }
+                    }
+                } else {
+                    results = null
                 }
-                isSearching = false
+                if (terms == nTerms) {
+                    isSearching = false
+                }
             }
         }
     }
@@ -168,13 +183,7 @@ fun EmbeddedSearchView(context: ViewContext) {
         // Results
         Box(modifier = Modifier.fillMaxSize()) {
             if (terms.isEmpty()) {
-                // Empty state — browse hint
-                Box(modifier = Modifier.align(Alignment.Center)) {
-                    IconTextBody(
-                        icon = { mod -> Icon(Icons.Filled.Search, null, modifier = mod) },
-                        content = { Text("Search for songs, artists, albums…") }
-                    )
-                }
+                SearchHistoryContent(context) { term -> setTerms(term) }
             } else {
                 results?.run {
                     val hasSongs = isChipSelected(Groove.Kind.SONG) && songIds.isNotEmpty()

@@ -45,6 +45,7 @@ import io.github.zyrouge.symphony.ui.components.IntroductoryDialog
 import io.github.zyrouge.symphony.ui.components.NowPlayingBottomBar
 import io.github.zyrouge.symphony.ui.helpers.ScaleTransition
 import io.github.zyrouge.symphony.ui.helpers.SlideTransition
+import io.github.zyrouge.symphony.utils.runIfOrThis
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.home.ForYouView
 import io.github.zyrouge.symphony.ui.view.home.LibraryView

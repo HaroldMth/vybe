@@ -267,13 +267,18 @@ class PlaylistRepository(private val symphony: Symphony) {
         update(favorites.id, songIds.mutate { remove(songId) })
     }
 
+    /**
+     * Registers a catalog/editorial playlist so it can be opened (e.g. from a
+     * search result), WITHOUT adding it to `_all`/`cache` visibility in the
+     * user's own Playlists screen. This used to insert into `_all` exactly
+     * like a user-created playlist, so any editorial/catalog playlist that
+     * showed up while just browsing home or searching would permanently
+     * appear in the user's personal playlist library, looking like a
+     * pre-installed default the user never made and can't get rid of.
+     */
     fun putRemote(playlist: Playlist) {
         cache[playlist.id] = playlist
-        _all.update {
-            if (it.contains(playlist.id)) it else it + playlist.id
-        }
         emitUpdateId()
-        emitCount()
     }
 
     fun isRemotePlaylist(playlist: Playlist) = isRemoteId(playlist.id)
