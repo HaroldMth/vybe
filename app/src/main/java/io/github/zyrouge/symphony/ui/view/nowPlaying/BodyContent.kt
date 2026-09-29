@@ -60,7 +60,6 @@ import io.github.zyrouge.symphony.ui.helpers.FadeTransition
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.ArtistViewRoute
 import io.github.zyrouge.symphony.ui.view.NowPlayingData
-import io.github.zyrouge.symphony.ui.view.NowPlayingDefaults
 import io.github.zyrouge.symphony.ui.view.NowPlayingLyricsLayout
 import io.github.zyrouge.symphony.ui.view.NowPlayingStates
 import io.github.zyrouge.symphony.utils.DurationUtils
@@ -153,9 +152,7 @@ fun NowPlayingBodyContent(context: ViewContext, data: NowPlayingData, states: No
                                 detectTapGestures {
                                     when (lyricsLayout) {
                                         NowPlayingLyricsLayout.ReplaceArtwork -> {
-                                            val nShow = !states.showLyrics.value
-                                            states.showLyrics.value = nShow
-                                            NowPlayingDefaults.showLyrics = nShow
+                                            states.showLyrics.value = !states.showLyrics.value
                                         }
                                         NowPlayingLyricsLayout.SeparatePage -> {
                                             context.navController.navigate(

@@ -76,7 +76,12 @@ fun LyricsView(context: ViewContext) {
                         }
                     },
                     actions = {
-                        LyricsSettingsButton(context)
+                        LyricsSettingsButton(context) { next ->
+                            if (next == NowPlayingLyricsLayout.ReplaceArtwork) {
+                                NowPlayingDefaults.showLyrics.value = true
+                                context.navController.popBackStack()
+                            }
+                        }
                     },
                     // Deliberately NOT transparent: unlike static list screens, this
                     // app bar sits directly above scrolling lyrics text, so a

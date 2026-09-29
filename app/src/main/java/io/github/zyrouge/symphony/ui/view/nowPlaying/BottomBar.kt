@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.LyricsViewRoute
 import io.github.zyrouge.symphony.ui.view.NowPlayingData
-import io.github.zyrouge.symphony.ui.view.NowPlayingDefaults
 import io.github.zyrouge.symphony.ui.view.NowPlayingLyricsLayout
 import io.github.zyrouge.symphony.ui.view.NowPlayingStates
 import io.github.zyrouge.symphony.ui.view.QueueViewRoute
@@ -114,9 +113,7 @@ fun NowPlayingBodyBottomBar(
                     onClick = {
                         when (lyricsLayout) {
                             NowPlayingLyricsLayout.ReplaceArtwork -> {
-                                val nShowLyrics = !showLyricsState.value
-                                showLyricsState.value = nShowLyrics
-                                NowPlayingDefaults.showLyrics = nShowLyrics
+                                showLyricsState.value = !showLyricsState.value
                             }
 
                             NowPlayingLyricsLayout.SeparatePage -> {

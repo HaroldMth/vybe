@@ -42,7 +42,7 @@ data class NowPlayingStates(
 )
 
 object NowPlayingDefaults {
-    var showLyrics = false
+    val showLyrics = kotlinx.coroutines.flow.MutableStateFlow(false)
 }
 
 enum class NowPlayingControlsLayout {

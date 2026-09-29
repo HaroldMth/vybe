@@ -56,6 +56,7 @@ import io.github.zyrouge.symphony.ui.helpers.ScreenOrientation
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.AlbumViewRoute
 import io.github.zyrouge.symphony.ui.view.NowPlayingData
+import io.github.zyrouge.symphony.ui.view.NowPlayingLyricsLayout
 import io.github.zyrouge.symphony.ui.view.NowPlayingStates
 
 @Composable
@@ -195,7 +196,13 @@ private fun NowPlayingBodyCoverLyrics(context: ViewContext, orientation: ScreenO
                     }
                 }
                 Spacer(modifier = Modifier.width(4.dp))
-                LyricsSettingsButton(context, tint = Color.White.copy(alpha = 0.6f))
+                LyricsSettingsButton(context, tint = Color.White.copy(alpha = 0.6f)) { next ->
+                    if (next == NowPlayingLyricsLayout.SeparatePage) {
+                        context.navController.navigate(
+                            io.github.zyrouge.symphony.ui.view.LyricsViewRoute
+                        )
+                    }
+                }
             }
         }
     }

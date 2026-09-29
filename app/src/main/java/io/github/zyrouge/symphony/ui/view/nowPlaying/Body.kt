@@ -36,11 +36,19 @@ internal val defaultHorizontalPadding = 20.dp
 
 @Composable
 fun NowPlayingBody(context: ViewContext, data: NowPlayingData) {
+    // Reuses the SAME flow instance (not a copy) as NowPlayingDefaults.showLyrics
+    // -- this composable stays mounted underneath while the separate Lyrics
+    // page is pushed on top, so a write to that shared flow from there (right
+    // before popping back) is what makes switching "Separate page" ->
+    // "Over artwork" reactively show lyrics again the instant you land back
+    // here, instead of only taking effect the next time you manually tap the
+    // lyrics toggle.
     val states = remember {
+        if (data.lyricsLayout != NowPlayingLyricsLayout.ReplaceArtwork) {
+            NowPlayingDefaults.showLyrics.value = false
+        }
         NowPlayingStates(
-            showLyrics = MutableStateFlow(
-                data.lyricsLayout == NowPlayingLyricsLayout.ReplaceArtwork && NowPlayingDefaults.showLyrics
-            ),
+            showLyrics = NowPlayingDefaults.showLyrics,
             showExtraOptions = MutableStateFlow(false),
         )
     }
