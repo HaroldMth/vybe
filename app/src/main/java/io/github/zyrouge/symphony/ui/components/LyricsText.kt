@@ -37,6 +37,7 @@ fun LyricsText(
     context: ViewContext,
     padding: PaddingValues,
     style: TimedContentTextStyle,
+    forceUnsynced: Boolean = false,
 ) {
     val coroutineScope = rememberCoroutineScope()
     var playbackPosition by remember {
@@ -106,6 +107,7 @@ fun LyricsText(
                 duration = playbackPosition.played,
                 padding = padding,
                 style = style,
+                forceUnsynced = forceUnsynced,
                 onSeek = {
                     targetLyrics.pairs.getOrNull(it)?.first?.let { to ->
                         context.symphony.radio.seek(to)

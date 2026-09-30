@@ -13,6 +13,7 @@ import io.github.zyrouge.symphony.ui.view.nowPlaying.NothingPlaying
 import io.github.zyrouge.symphony.ui.view.nowPlaying.NowPlayingBody
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.Serializable
+import io.github.zyrouge.symphony.services.api.VybeVideoStreamData
 
 @Immutable
 data class NowPlayingData(
@@ -39,10 +40,16 @@ data class NowPlayingData(
 data class NowPlayingStates(
     val showLyrics: MutableStateFlow<Boolean>,
     val showExtraOptions: MutableStateFlow<Boolean>,
+    val showVideoMode: MutableStateFlow<Boolean> = NowPlayingDefaults.showVideoMode,
+    val videoStreamData: MutableStateFlow<VybeVideoStreamData?> = NowPlayingDefaults.videoStreamData,
+    val isLoadingVideo: MutableStateFlow<Boolean> = NowPlayingDefaults.isLoadingVideo,
 )
 
 object NowPlayingDefaults {
     val showLyrics = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val showVideoMode = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val videoStreamData = kotlinx.coroutines.flow.MutableStateFlow<VybeVideoStreamData?>(null)
+    val isLoadingVideo = kotlinx.coroutines.flow.MutableStateFlow(false)
 }
 
 enum class NowPlayingControlsLayout {

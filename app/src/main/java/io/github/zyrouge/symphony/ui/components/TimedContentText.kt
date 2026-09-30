@@ -74,10 +74,12 @@ fun TimedContentText(
     padding: PaddingValues,
     style: TimedContentTextStyle,
     onSeek: (Int) -> Unit,
+    forceUnsynced: Boolean = false,
 ) {
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberLazyListState()
     val currentPosition by rememberUpdatedState(duration)
+    val isSynced = content.isSynced && !forceUnsynced
     val visibleRange by remember {
         derivedStateOf {
             val start = scrollState.firstVisibleItemIndex
@@ -87,11 +89,11 @@ fun TimedContentText(
     }
     var activeIndex by remember { mutableIntStateOf(-1) }
 
-    LaunchedEffect(LocalContext.current) {
+    LaunchedEffect(LocalContext.current, forceUnsynced) {
         snapshotFlow { currentPosition }
             .distinctUntilChanged()
             .collect {
-                if (!content.isSynced) {
+                if (!isSynced) {
                     return@collect
                 }
                 val isActiveIndexInvisible = activeIndex > -1 && visibleRange.run {
@@ -131,8 +133,8 @@ fun TimedContentText(
             Spacer(modifier = Modifier.height(padding.calculateTopPadding()))
         }
         itemsIndexed(content.pairs) { i, x ->
-            val highlight = !content.isSynced || i < activeIndex
-            val active = i == activeIndex
+            val highlight = !isSynced || i < activeIndex
+            val active = isSynced && i == activeIndex
 
             val textStyle by animateTextStyleAsState(
                 targetValue = when {
@@ -149,7 +151,7 @@ fun TimedContentText(
                     .fillMaxWidth()
                     .pointerInput(Unit) {
                         detectTapGestures { _ ->
-                            if (!content.isSynced) {
+                            if (!isSynced) {
                                 return@detectTapGestures
                             }
                             onSeek(i)

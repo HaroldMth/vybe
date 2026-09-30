@@ -344,3 +344,30 @@ data class VybeGenreDetailData(
     val artists: List<VybeArtist> = emptyList(),
     val songs: List<VybeTrack> = emptyList(),
 )
+
+@Serializable
+data class VybeVideoItem(
+    val videoId: String,
+    val title: String = "",
+    val channel: String = "",
+    val duration: String? = null,
+    val durationSec: Long? = null,
+    val thumbnail: String? = null,
+    val embedUrl: String? = null,
+    val watchUrl: String? = null,
+)
+
+@Serializable
+data class VybeVideoStreamData(
+    val url: String = "",
+    val download_url: String? = null,
+    val title: String? = null,
+    val thumbnail: String? = null,
+    val quality: String? = null,
+    val format: String? = null,
+    val type: String? = null,
+    val creator: String? = null,
+    val source: String? = null,
+    val youtubeUrl: String? = null,
+)
+

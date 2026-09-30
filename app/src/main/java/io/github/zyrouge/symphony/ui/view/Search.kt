@@ -79,6 +79,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 
+import io.github.zyrouge.symphony.services.api.VybeVideoItem
+
 private data class SearchResult(
     val songIds: List<String>,
     val artistNames: List<String>,
@@ -86,6 +88,7 @@ private data class SearchResult(
     val albumArtistNames: List<String>,
     val genreNames: List<String>,
     val playlistIds: List<String>,
+    val videoItems: List<VybeVideoItem> = emptyList(),
 )
 
 @Serializable
@@ -105,7 +108,9 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
         mutableStateOf(initialChip)
     }
 
-    fun isChipSelected(kind: Groove.Kind) = selectedChip == null || selectedChip == kind
+    var isVideoChipSelected by rememberSaveable { mutableStateOf(false) }
+
+    fun isChipSelected(kind: Groove.Kind) = (!isVideoChipSelected) && (selectedChip == null || selectedChip == kind)
 
     // Must survive recomposition. It used to be a plain local `var`, reset to null
     // on every keystroke, so cancel() never cancelled the previous search and
@@ -124,22 +129,31 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                 val albumArtistNames = mutableListOf<String>()
                 val genreNames = mutableListOf<String>()
                 val playlistIds = mutableListOf<String>()
+                var videoItems = emptyList<VybeVideoItem>()
 
                 if (nTerms.isNotEmpty()) {
-                    val remoteData = context.symphony.vybeApi.search(nTerms)
-                    if (remoteData != null) {
-                        val ingested = context.symphony.groove.catalog.ingestSearch(remoteData)
-                        if (isChipSelected(Groove.Kind.SONG)) {
-                            songIds.addAll(ingested.songIds)
+                    if (isVideoChipSelected || selectedChip == null) {
+                        val videoResults = context.symphony.vybeApi.searchVideos(nTerms)
+                        if (videoResults != null) {
+                            videoItems = videoResults
                         }
-                        if (isChipSelected(Groove.Kind.ARTIST)) {
-                            artistNames.addAll(ingested.artistNames)
-                        }
-                        if (isChipSelected(Groove.Kind.ALBUM)) {
-                            albumIds.addAll(ingested.albumIds)
-                        }
-                        if (isChipSelected(Groove.Kind.PLAYLIST)) {
-                            playlistIds.addAll(ingested.playlistIds)
+                    }
+                    if (!isVideoChipSelected) {
+                        val remoteData = context.symphony.vybeApi.search(nTerms)
+                        if (remoteData != null) {
+                            val ingested = context.symphony.groove.catalog.ingestSearch(remoteData)
+                            if (isChipSelected(Groove.Kind.SONG)) {
+                                songIds.addAll(ingested.songIds)
+                            }
+                            if (isChipSelected(Groove.Kind.ARTIST)) {
+                                artistNames.addAll(ingested.artistNames)
+                            }
+                            if (isChipSelected(Groove.Kind.ALBUM)) {
+                                albumIds.addAll(ingested.albumIds)
+                            }
+                            if (isChipSelected(Groove.Kind.PLAYLIST)) {
+                                playlistIds.addAll(ingested.playlistIds)
+                            }
                         }
                     }
 
@@ -153,6 +167,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                             albumArtistNames = albumArtistNames,
                             genreNames = genreNames,
                             playlistIds = playlistIds,
+                            videoItems = videoItems,
                         )
                     }
                 }
@@ -240,18 +255,19 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                 ) {
                     Spacer(modifier = Modifier.width(4.dp))
                     FilterChip(
-                        selected = selectedChip == null,
+                        selected = selectedChip == null && !isVideoChipSelected,
                         label = {
                             Text(context.symphony.t.All)
                         },
                         onClick = {
                             selectedChip = null
+                            isVideoChipSelected = false
                             setTerms(terms)
                         }
                     )
                     Groove.Kind.entries.map {
                         FilterChip(
-                            selected = selectedChip == it,
+                            selected = selectedChip == it && !isVideoChipSelected,
                             label = {
                                 Text(it.label(context))
                             },
@@ -279,10 +295,22 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                             },
                             onClick = {
                                 selectedChip = it
+                                isVideoChipSelected = false
                                 setTerms(terms)
                             }
                         )
                     }
+                    FilterChip(
+                        selected = isVideoChipSelected,
+                        label = {
+                            Text("Videos")
+                        },
+                        onClick = {
+                            isVideoChipSelected = true
+                            selectedChip = null
+                            setTerms(terms)
+                        }
+                    )
                     Spacer(modifier = Modifier.width(4.dp))
                 }
                 Spacer(modifier = Modifier.height(4.dp))
@@ -309,8 +337,9 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                         val hasPlaylists =
                             isChipSelected(Groove.Kind.PLAYLIST) && playlistIds.isNotEmpty()
                         val hasGenres = isChipSelected(Groove.Kind.GENRE) && genreNames.isNotEmpty()
+                        val hasVideos = (isVideoChipSelected || selectedChip == null) && videoItems.isNotEmpty()
                         val hasNoResults =
-                            !hasSongs && !hasArtists && !hasAlbums && !hasAlbumArtists && !hasPlaylists && !hasGenres
+                            !hasSongs && !hasArtists && !hasAlbums && !hasAlbumArtists && !hasPlaylists && !hasGenres && !hasVideos
 
                         when {
                             isSearching -> {
@@ -501,6 +530,30 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                                                         }
                                                     )
                                                 }
+                                        }
+                                    }
+                                    if (hasVideos) {
+                                        SideHeading("Videos")
+                                        videoItems.forEach { video ->
+                                            GenericGrooveCard(
+                                                image = video.thumbnail?.let { url ->
+                                                    coil.request.ImageRequest.Builder(LocalContext.current)
+                                                        .data(url)
+                                                        .crossfade(true)
+                                                        .build()
+                                                },
+                                                title = { Text(video.title, maxLines = 2) },
+                                                subtitle = video.channel.takeIf { it.isNotBlank() }?.let { { Text(it) } },
+                                                options = null,
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        val stream = context.symphony.vybeApi.getVideoStream(video.videoId)
+                                                        NowPlayingDefaults.videoStreamData.value = stream
+                                                        NowPlayingDefaults.showVideoMode.value = true
+                                                        context.navController.navigate(NowPlayingViewRoute)
+                                                    }
+                                                }
+                                            )
                                         }
                                     }
                                     Spacer(modifier = Modifier.height(12.dp))

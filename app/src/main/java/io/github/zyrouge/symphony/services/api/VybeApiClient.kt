@@ -48,7 +48,7 @@ class VybeApiClient(private val symphony: Symphony) {
         if (!configured.isNullOrEmpty()) {
             return configured
         }
-        return "https://vybe-api27.onrender.com/api"
+        return "http://192.168.0.142:4000/api"
     }
 
     /**
@@ -247,4 +247,26 @@ class VybeApiClient(private val symphony: Symphony) {
         }
         return builder.build().toString()
     }
+
+    suspend fun searchVideos(query: String, limit: Int = 10): List<VybeVideoItem>? {
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+        return fetch("videos/search?q=$encoded&limit=$limit")
+    }
+
+    suspend fun getVideoStream(
+        input: String,
+        title: String? = null,
+        artist: String? = null,
+        durationSec: Long? = null,
+    ): VybeVideoStreamData? {
+        val builder = getBaseUrl().toHttpUrlOrNull()?.newBuilder()
+            ?.addPathSegment("videos")
+            ?.addPathSegment("stream") ?: return null
+        builder.addQueryParameter("url", input)
+        if (!title.isNullOrBlank()) builder.addQueryParameter("title", title)
+        if (!artist.isNullOrBlank()) builder.addQueryParameter("artist", artist)
+        if (durationSec != null && durationSec > 0) builder.addQueryParameter("duration", durationSec.toString())
+        return fetch(builder.build().toString())
+    }
 }
+

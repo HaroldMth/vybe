@@ -6,6 +6,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -26,11 +27,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +50,7 @@ import androidx.compose.ui.unit.min
 import coil.compose.AsyncImage
 import io.github.zyrouge.symphony.services.groove.Song
 import io.github.zyrouge.symphony.ui.components.KeepScreenAwake
+import io.github.zyrouge.symphony.ui.components.PulsingBarsLoader
 import io.github.zyrouge.symphony.ui.components.LyricsSettingsButton
 import io.github.zyrouge.symphony.ui.components.LyricsText
 import io.github.zyrouge.symphony.ui.components.TimedContentTextStyle
@@ -67,29 +71,47 @@ fun NowPlayingBodyCover(
     orientation: ScreenOrientation,
 ) {
     val showLyrics by states.showLyrics.collectAsState()
+    val showVideoMode by states.showVideoMode.collectAsState()
+    val videoStreamData by states.videoStreamData.collectAsState()
+    val isLoadingVideo by states.isLoadingVideo.collectAsState()
 
     Box(modifier = Modifier.padding(defaultHorizontalPadding, 0.dp)) {
         AnimatedContent(
             label = "now-playing-body-cover",
-            targetState = showLyrics,
+            targetState = Pair(showLyrics, showVideoMode),
             contentAlignment = Alignment.Center,
             transitionSpec = {
                 val from = FadeTransition.enterTransition()
                 val to = FadeTransition.exitTransition()
                 from togetherWith to
             },
-        ) { targetStateShowLyrics ->
-            if (targetStateShowLyrics) {
-                NowPlayingBodyCoverLyrics(context, orientation)
-            } else {
-                NowPlayingBodyCoverArtwork(context, data.song)
+        ) { (targetShowLyrics, targetShowVideoMode) ->
+            when {
+                targetShowLyrics -> {
+                    NowPlayingBodyCoverLyrics(context, orientation, forceUnsynced = targetShowVideoMode)
+                }
+                targetShowVideoMode -> {
+                    NowPlayingBodyCoverVideo(
+                        context = context,
+                        song = data.song,
+                        videoData = videoStreamData,
+                        isLoading = isLoadingVideo,
+                    )
+                }
+                else -> {
+                    NowPlayingBodyCoverArtwork(context, data.song)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun NowPlayingBodyCoverLyrics(context: ViewContext, orientation: ScreenOrientation) {
+private fun NowPlayingBodyCoverLyrics(
+    context: ViewContext,
+    orientation: ScreenOrientation,
+    forceUnsynced: Boolean = false,
+) {
     val keepScreenAwake by context.symphony.settings.lyricsKeepScreenAwake.flow.collectAsState()
     val lyricsData by context.symphony.radio.observatory.lyrics.collectAsState()
     val density = LocalDensity.current
@@ -139,6 +161,7 @@ private fun NowPlayingBodyCoverLyrics(context: ViewContext, orientation: ScreenO
                     ),
                     spacing = 10.dp,
                 ),
+                forceUnsynced = forceUnsynced,
             )
 
             // Opaque scrim behind the header so no lyric pixels show through
@@ -280,3 +303,129 @@ private fun NowPlayingBodyCoverArtwork(context: ViewContext, song: Song) {
         }
     }
 }
+
+@Composable
+private fun VideoPlayerView(
+    videoUrl: String,
+    modifier: Modifier = Modifier,
+) {
+    AndroidView(
+        factory = { ctx ->
+            android.widget.VideoView(ctx).apply {
+                layoutParams = android.view.ViewGroup.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                val mediaController = android.widget.MediaController(ctx)
+                mediaController.setAnchorView(this)
+                setMediaController(mediaController)
+                setVideoURI(android.net.Uri.parse(videoUrl))
+                setOnPreparedListener { mp ->
+                    mp.isLooping = true
+                    start()
+                }
+            }
+        },
+        update = { videoView ->
+            if (videoView.tag != videoUrl) {
+                videoView.tag = videoUrl
+                videoView.setVideoURI(android.net.Uri.parse(videoUrl))
+                videoView.start()
+            }
+        },
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun NowPlayingBodyCoverVideo(
+    context: ViewContext,
+    song: Song,
+    videoData: io.github.zyrouge.symphony.services.api.VybeVideoStreamData?,
+    isLoading: Boolean,
+) {
+    BoxWithConstraints {
+        val dimension = min(this@BoxWithConstraints.maxHeight, this@BoxWithConstraints.maxWidth)
+
+        Box(
+            modifier = Modifier
+                .size(dimension)
+                .background(Color.Black, RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(20.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            when {
+                isLoading -> {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        PulsingBarsLoader()
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            "Loading video stream...",
+                            style = MaterialTheme.typography.bodySmall.copy(color = Color.White.copy(alpha = 0.7f))
+                        )
+                    }
+                }
+                videoData != null && !videoData.url.isNullOrBlank() -> {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        VideoPlayerView(
+                            videoUrl = videoData.url!!,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(12.dp),
+                            shape = RoundedCornerShape(50),
+                            color = Color.Black.copy(alpha = 0.7f),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    androidx.compose.material.icons.Icons.Filled.CloudDone,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "${videoData.quality ?: "MP4"} · ${videoData.creator ?: "David Cyril"}",
+                                    style = MaterialTheme.typography.labelSmall.copy(color = Color.White)
+                                )
+                            }
+                        }
+                    }
+                }
+                videoData != null -> {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        AsyncImage(
+                            model = if (videoData.thumbnail != null) videoData.thumbnail
+                                    else song.createArtworkImageRequest(context.symphony).build(),
+                            contentDescription = "Video Thumbnail",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+                else -> {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "Video mode active",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Fetching stream link...",
+                            style = MaterialTheme.typography.bodySmall.copy(color = Color.White.copy(alpha = 0.6f))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+

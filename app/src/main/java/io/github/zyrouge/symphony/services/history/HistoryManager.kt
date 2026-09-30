@@ -39,7 +39,11 @@ class HistoryManager(private val symphony: Symphony) {
     /** Runs at startup and after every library reset/rescan (see Groove.fetch). */
     fun rehydrate() {
         _recentlyPlayed.value.forEach { songId ->
-            readSongSnapshot(songId)?.let { song -> registerSong(song) }
+            try {
+                readSongSnapshot(songId)?.let { song -> registerSong(song) }
+            } catch (err: Exception) {
+                Logger.error("HistoryManager", "skipping duplicate history entry $songId", err)
+            }
         }
     }
 
