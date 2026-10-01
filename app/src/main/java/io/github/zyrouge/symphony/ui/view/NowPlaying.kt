@@ -11,9 +11,9 @@ import io.github.zyrouge.symphony.services.radio.RadioQueue
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.nowPlaying.NothingPlaying
 import io.github.zyrouge.symphony.ui.view.nowPlaying.NowPlayingBody
+import io.github.zyrouge.symphony.ui.view.nowPlaying.StandaloneVideoView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.Serializable
-import io.github.zyrouge.symphony.services.api.VybeVideoStreamData
 
 @Immutable
 data class NowPlayingData(
@@ -40,16 +40,10 @@ data class NowPlayingData(
 data class NowPlayingStates(
     val showLyrics: MutableStateFlow<Boolean>,
     val showExtraOptions: MutableStateFlow<Boolean>,
-    val showVideoMode: MutableStateFlow<Boolean> = NowPlayingDefaults.showVideoMode,
-    val videoStreamData: MutableStateFlow<VybeVideoStreamData?> = NowPlayingDefaults.videoStreamData,
-    val isLoadingVideo: MutableStateFlow<Boolean> = NowPlayingDefaults.isLoadingVideo,
 )
 
 object NowPlayingDefaults {
     val showLyrics = kotlinx.coroutines.flow.MutableStateFlow(false)
-    val showVideoMode = kotlinx.coroutines.flow.MutableStateFlow(false)
-    val videoStreamData = kotlinx.coroutines.flow.MutableStateFlow<VybeVideoStreamData?>(null)
-    val isLoadingVideo = kotlinx.coroutines.flow.MutableStateFlow(false)
 }
 
 enum class NowPlayingControlsLayout {
@@ -68,6 +62,13 @@ object NowPlayingViewRoute
 
 @Composable
 fun NowPlayingView(context: ViewContext) {
+    val videoState by context.symphony.videoMode.state.collectAsState()
+    val standalone = videoState.standalone
+    // A video opened from search has no song behind it, so it gets its own screen.
+    if (standalone != null) {
+        StandaloneVideoView(context, standalone)
+        return
+    }
     NowPlayingObserver(context) { data ->
         when {
             data != null -> NowPlayingBody(context, data = data)

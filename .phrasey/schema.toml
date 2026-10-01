@@ -762,3 +762,27 @@ name = "KeepScreenAwakeOnLyrics"
 
 [[keys]]
 name = "MinSongDurationFilter"
+
+[[keys]]
+name = "VideoMode"
+
+[[keys]]
+name = "Videos"
+
+[[keys]]
+name = "LoadingVideo"
+
+[[keys]]
+name = "VideoNotFound"
+
+[[keys]]
+name = "VideoPlaybackFailed"
+
+[[keys]]
+name = "TryAgain"
+
+[[keys]]
+name = "FillFrame"
+
+[[keys]]
+name = "FitFrame"

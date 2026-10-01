@@ -42,7 +42,7 @@ class HistoryManager(private val symphony: Symphony) {
             try {
                 readSongSnapshot(songId)?.let { song -> registerSong(song) }
             } catch (err: Exception) {
-                Logger.error("HistoryManager", "skipping duplicate history entry $songId", err)
+                Logger.error("HistoryManager", "couldn't restore history entry $songId, skipping it", err)
             }
         }
     }

@@ -74,6 +74,7 @@ import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.utils.joinToStringIfNotEmpty
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -132,11 +133,14 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                 var videoItems = emptyList<VybeVideoItem>()
 
                 if (nTerms.isNotEmpty()) {
-                    if (isVideoChipSelected || selectedChip == null) {
-                        val videoResults = context.symphony.vybeApi.searchVideos(nTerms)
-                        if (videoResults != null) {
-                            videoItems = videoResults
+                    // Catalog and video lookups are independent, so they run side by side.
+                    // Videos are only fetched when they would actually be shown.
+                    val videosLookup = when {
+                        isVideoChipSelected || selectedChip == null -> async {
+                            context.symphony.vybeApi.searchVideos(nTerms)
                         }
+
+                        else -> null
                     }
                     if (!isVideoChipSelected) {
                         val remoteData = context.symphony.vybeApi.search(nTerms)
@@ -156,6 +160,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                             }
                         }
                     }
+                    videosLookup?.await()?.let { videoItems = it }
 
                     // Belt and braces: never let a slower, older query land on top
                     // of what's currently typed.
@@ -303,7 +308,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                     FilterChip(
                         selected = isVideoChipSelected,
                         label = {
-                            Text("Videos")
+                            Text(context.symphony.t.Videos)
                         },
                         onClick = {
                             isVideoChipSelected = true
@@ -533,7 +538,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                                         }
                                     }
                                     if (hasVideos) {
-                                        SideHeading("Videos")
+                                        SideHeading(context.symphony.t.Videos)
                                         videoItems.forEach { video ->
                                             GenericGrooveCard(
                                                 image = video.thumbnail?.let { url ->
@@ -546,12 +551,8 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                                                 subtitle = video.channel.takeIf { it.isNotBlank() }?.let { { Text(it) } },
                                                 options = null,
                                                 onClick = {
-                                                    coroutineScope.launch {
-                                                        val stream = context.symphony.vybeApi.getVideoStream(video.videoId)
-                                                        NowPlayingDefaults.videoStreamData.value = stream
-                                                        NowPlayingDefaults.showVideoMode.value = true
-                                                        context.navController.navigate(NowPlayingViewRoute)
-                                                    }
+                                                    context.symphony.videoMode.playStandalone(video)
+                                                    context.navController.navigate(NowPlayingViewRoute)
                                                 }
                                             )
                                         }

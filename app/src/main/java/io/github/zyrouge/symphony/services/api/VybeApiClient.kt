@@ -269,4 +269,3 @@ class VybeApiClient(private val symphony: Symphony) {
         return fetch(builder.build().toString())
     }
 }
-

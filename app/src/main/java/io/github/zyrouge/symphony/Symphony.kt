@@ -35,6 +35,7 @@ class Symphony(application: Application) : AndroidViewModel(application), Sympho
     val groove = Groove(this)
     val streamCache = io.github.zyrouge.symphony.services.radio.StreamCache(this)
     val radio = Radio(this)
+    val videoMode = io.github.zyrouge.symphony.services.video.VideoMode(this)
     val translator = Translator(this)
     val downloader = io.github.zyrouge.symphony.services.download.DownloadManager(this)
     val history = io.github.zyrouge.symphony.services.history.HistoryManager(this)
@@ -45,7 +46,7 @@ class Symphony(application: Application) : AndroidViewModel(application), Sympho
     val applicationContext get() = getApplication<Application>().applicationContext
     var closeApp: (() -> Unit)? = null
     private var isReady = false
-    private var hooks = listOf(this, radio, groove)
+    private var hooks = listOf(this, radio, videoMode, groove)
 
     internal fun emitReady() {
         if (isReady) {

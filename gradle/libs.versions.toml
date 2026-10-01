@@ -11,7 +11,9 @@ fuzzywuzzy = "1.4.0"
 junit-jupiter = "5.11.3"
 kotlinx-serialization-json = "1.7.3"
 lifecycle-runtime = "2.8.7"
+lifecycle-process = "2.8.7"
 media = "1.7.0"
+media3 = "1.5.1"
 okhttp3 = "4.12.0"
 room = "2.6.1"
 
@@ -45,7 +47,9 @@ fuzzywuzzy = { group = "me.xdrop", name = "fuzzywuzzy", version.ref = "fuzzywuzz
 junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization-json" }
 lifecycle-runtime = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle-runtime" }
+lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycle-process" }
 media = { group = "androidx.media", name = "media", version.ref = "media" }
+media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 okhttp3 = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp3" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }

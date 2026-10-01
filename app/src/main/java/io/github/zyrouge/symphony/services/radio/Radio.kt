@@ -55,9 +55,20 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
     private var player: RadioPlayer? = null
     private var nextPlayer: RadioPlayer? = null
 
-    val hasPlayer get() = player?.usable == true
-    val isPlaying get() = player?.isPlaying == true
-    val currentPlaybackPosition get() = player?.playbackPosition
+    val hasPlayer get() = player?.usable == true || symphony.videoMode.ownsTransport
+    val isPlaying
+        get() = when {
+            symphony.videoMode.ownsTransport -> symphony.videoMode.isPlaying
+            else -> player?.isPlaying == true
+        }
+    val currentPlaybackPosition
+        get() = when {
+            symphony.videoMode.ownsTransport -> symphony.videoMode.playbackPosition
+            else -> player?.playbackPosition
+        }
+
+    /** The radio's own audio player, ignoring video mode. */
+    internal val isAudioPlaying get() = player?.isPlaying == true
     val currentSpeed get() = player?.speed ?: RadioPlayer.DEFAULT_SPEED
     val currentPitch get() = player?.pitch ?: RadioPlayer.DEFAULT_PITCH
     val audioSessionId get() = player?.audioSessionId
@@ -110,6 +121,8 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
             return
         }
         symphony.history.addPlayed(song)
+        // Lets video mode follow the queue (new video) or step aside (audio only).
+        symphony.videoMode.onSongChanging(song.id, options.autostart)
         try {
             queue.currentSongIndex = options.index
             player = nextPlayer?.takeIf {
@@ -220,9 +233,18 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
         }
     }
 
-    fun resume() = start()
+    fun resume() {
+        when {
+            symphony.videoMode.ownsTransport -> symphony.videoMode.play()
+            else -> start()
+        }
+    }
 
     private fun start() {
+        // A video is loading or playing for this song: it provides the sound.
+        if (symphony.videoMode.suppressesAudio) {
+            return
+        }
         player?.let {
             val hasFocus = focus.requestFocus()
             if (symphony.settings.requireAudioFocus.value && !hasFocus) {
@@ -245,6 +267,10 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
     fun pause() = pause {}
 
     private fun pause(forceFade: Boolean = false, onFinish: () -> Unit) {
+        if (symphony.videoMode.ownsTransport) {
+            symphony.videoMode.pause(fade = forceFade, onDone = onFinish)
+            return
+        }
         player?.let {
             if (!it.isPlaying) {
                 return@let
@@ -262,6 +288,10 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
     }
 
     fun pauseInstant() {
+        if (symphony.videoMode.ownsTransport) {
+            symphony.videoMode.pause()
+            return
+        }
         player?.let {
             it.pause()
             onUpdate.dispatch(Events.Player.Paused)
@@ -269,6 +299,10 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
     }
 
     fun stop(ended: Boolean = true) {
+        // `ended = false` is a new queue replacing this one, and video mode follows it.
+        if (ended) {
+            symphony.videoMode.exit(resumeAudio = false)
+        }
         stopCurrentSong()
         autoplay.stop()
         queue.reset()
@@ -285,6 +319,10 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
     fun canJumpToNext() = queue.hasSongAt(queue.currentSongIndex + 1)
 
     fun seek(position: Long) {
+        if (symphony.videoMode.ownsTransport) {
+            symphony.videoMode.seek(position)
+            return
+        }
         player?.let {
             it.seek(position.toInt())
             onUpdate.dispatch(Events.Player.Seeked)
@@ -292,12 +330,20 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
     }
 
     fun duck() {
+        if (symphony.videoMode.ownsTransport) {
+            symphony.videoMode.duck()
+            return
+        }
         player?.let {
             it.changeVolume(RadioPlayer.DUCK_VOLUME) {}
         }
     }
 
     fun restoreVolume() {
+        if (symphony.videoMode.ownsTransport) {
+            symphony.videoMode.restoreVolume()
+            return
+        }
         player?.let {
             it.changeVolume(RadioPlayer.MAX_VOLUME) {}
         }
@@ -309,6 +355,7 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
             if (persist) {
                 persistedSpeed = speed
             }
+            symphony.videoMode.syncPlaybackParams()
             onUpdate.dispatch(Events.QueueOption.SpeedChanged)
         }
     }
@@ -319,6 +366,7 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
             if (persist) {
                 persistedPitch = pitch
             }
+            symphony.videoMode.syncPlaybackParams()
             onUpdate.dispatch(Events.QueueOption.PitchChanged)
         }
     }
@@ -502,8 +550,37 @@ class Radio(private val symphony: Symphony) : Symphony.Hooks {
         symphony.settings.previousSongQueue.setValue(
             RadioQueue.Serialized.create(
                 queue = queue,
-                playbackPosition = currentPlaybackPosition ?: RadioPlayer.PlaybackPosition.zero
+                playbackPosition = player?.playbackPosition ?: RadioPlayer.PlaybackPosition.zero
             )
         )
     }
+
+    // ── Used by VideoMode ────────────────────────────────────────────────────────────
+
+    /** Fades out and pauses the radio's own player without going through video routing. */
+    internal fun silenceAudioForVideo() {
+        val current = player ?: return
+        if (!current.isPlaying) {
+            return
+        }
+        current.changeVolume(to = RadioPlayer.MIN_VOLUME) { _ ->
+            current.pause()
+            onUpdate.dispatch(Events.Player.Paused)
+        }
+    }
+
+    /** Starts the radio's own audio again (video mode is off or has failed). */
+    internal fun resumeAudio() = start()
+
+    /** A video reached its end; continue exactly as if the audio track had finished. */
+    internal fun onVideoEnded() = onSongFinish(SongFinishSource.Finish)
+
+    internal fun nextSongIdForPrefetch(): String? {
+        val (nextIndex) = getNextSong(SongFinishSource.Finish)
+        return queue.getSongIdAt(nextIndex)
+    }
+
+    internal fun requestAudioFocus() = focus.requestFocus()
+
+    internal fun abandonAudioFocus() = focus.abandonFocus()
 }

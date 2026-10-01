@@ -12,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -22,12 +21,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import io.github.zyrouge.symphony.services.video.VideoMode
 import io.github.zyrouge.symphony.ui.components.DownloadIconButton
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.NowPlayingData
@@ -93,37 +91,18 @@ fun NowPlayingAppBar(context: ViewContext, data: NowPlayingData, states: NowPlay
             )
         }
 
-        // Video / YouTube mode toggle button
-        val showVideoMode by states.showVideoMode.collectAsState()
-        val coroutineScope = rememberCoroutineScope()
+        // Video mode (YouTube) toggle
+        val videoState by context.symphony.videoMode.state.collectAsState()
         IconButton(
             onClick = {
-                val nextMode = !states.showVideoMode.value
-                states.showVideoMode.value = nextMode
-                if (nextMode) {
-                    context.symphony.radio.pause()
-                    context.symphony.radio.seek(0L)
-                    if (states.videoStreamData.value == null) {
-                        coroutineScope.launch {
-                            states.isLoadingVideo.value = true
-                            val result = context.symphony.vybeApi.getVideoStream(
-                                input = data.song.title,
-                                title = data.song.title,
-                                artist = data.song.artists.firstOrNull(),
-                                durationSec = data.song.duration / 1000
-                            )
-                            states.videoStreamData.value = result
-                            states.isLoadingVideo.value = false
-                        }
-                    }
-                }
+                context.haptic(Haptic.Toggle)
+                context.symphony.videoMode.toggleForSong(data.song.id)
             }
         ) {
-            Icon(
-                Icons.Filled.Movie,
-                contentDescription = "Video Mode",
-                modifier = Modifier.size(24.dp),
-                tint = if (showVideoMode) MaterialTheme.colorScheme.primary else Color.White,
+            YouTubeToggleIcon(
+                active = videoState.engaged,
+                loading = videoState.phase == VideoMode.Phase.Loading,
+                description = context.symphony.t.VideoMode,
             )
         }
 
