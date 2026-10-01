@@ -1,65 +1,126 @@
-<p align="center">
-    <img src="./media/banner.png" width="100%">
-</p>
+<div align="center">
 
-<p align="center">
-    <a href="https://github.com/zyrouge"><img src="https://img.shields.io/badge/made%20by-zyrouge-d946ef"></a>
-    <a href="#links"><img src="https://img.shields.io/badge/❤️%20consider%20donating-ffffff"></a>
-</p>
+# 🎵 Vybe
 
-<h1 align="center">Symphony</h1>
+**Your offline library — with cloud streaming, downloads, and video on top.**
 
-<p align="center">🎵 Lightweight, elegant music player that enhances your offline music experience. Supports Android 9 and later.</p>
+<a href="https://github.com/HaroldMth/vybe/releases/latest"><img src="https://img.shields.io/github/v/release/HaroldMth/vybe?label=release&color=545DFF" alt="Latest release"></a>
+<a href="https://github.com/HaroldMth/vybe/releases"><img src="https://img.shields.io/badge/release%20line-1.0-c9833c" alt="Release line 1.0"></a>
+<a href="./LICENSE"><img src="https://img.shields.io/github/license/HaroldMth/vybe?color=3DA639" alt="License"></a>
+<img src="https://img.shields.io/badge/platform-Android%209%2B%20(API%2028)-3DDC84?logo=android&logoColor=white" alt="Android 9+">
+<img src="https://img.shields.io/badge/Kotlin-2.1-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin">
+<img src="https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white" alt="Jetpack Compose">
 
-<p align="center">
-    <a href="https://github.com/zyrouge/symphony/releases/latest">Download (latest)</a> |
-    <a href="https://github.com/zyrouge/symphony/releases">View all releases</a> |
-    <a href="https://apt.izzysoft.de/fdroid/index/apk/io.github.zyrouge.symphony">IzzyOnDroid</a> |
-    <a href="https://f-droid.org/en/packages/io.github.zyrouge.symphony/">F-Droid</a> |
-    <a href="https://play.google.com/store/apps/details?id=io.github.zyrouge.symphony">Play Store</a>
-</p>
+<!-- Screenshots coming soon. -->
 
-<p align="center">
-    <a href=""><img src="https://img.shields.io/badge/stage-partially%20stable-545DFF"></a>
-    <a href="https://github.com/zyrouge/symphony/releases/latest"><img src="https://img.shields.io/github/v/release/zyrouge/symphony?label=latest"></a>
-    <a href="https://github.com/zyrouge/symphony/tags"><img src="https://img.shields.io/github/v/tag/zyrouge/symphony?label=latest-nightly&color=c9833c"></a>
-    <a href=""><img src="https://img.shields.io/badge/supports-Android%209+-AD2A5A"></a>
-    <a href="https://github.com/zyrouge/symphony/tree/i18n-summary"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/zyrouge/symphony/i18n-summary/badge-translated.json"></a>
-    <a href="https://github.com/zyrouge/symphony/tree/i18n-summary"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/zyrouge/symphony/i18n-summary/badge-languages.json"></a>
-    <a href="https://github.com/zyrouge/symphony/tree/i18n-summary"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/zyrouge/symphony/i18n-summary/badge-strings.json"></a>
-    <a href="https://github.com/zyrouge/symphony/releases"><img src="https://img.shields.io/github/downloads/zyrouge/symphony/total?color=E08312"></a>
-    <a href="https://github.com/zyrouge/symphony/releases/latest"><img src="https://img.shields.io/github/downloads/zyrouge/symphony/latest/total?color=E08312"></a>
-    <a href="https://github.com/zyrouge/symphony/actions/workflows/stable.yml"><img src="https://github.com/zyrouge/symphony/actions/workflows/stable.yml/badge.svg"></a>
-    <a href="https://github.com/zyrouge/symphony/actions/workflows/code-analysis.yml"><img src="https://github.com/zyrouge/symphony/actions/workflows/code-analysis.yml/badge.svg"></a>
-    <a href="./LICENSE"><img src="https://img.shields.io/github/license/zyrouge/symphony"></a>
-</p>
+</div>
 
-<br>
+Vybe is a lightweight, elegant Android music player for the music you already
+own, with a cloud layer for the music you don't. Scan your device, browse it by
+folder, album, artist, genre, or playlist — then search and stream the wider
+catalog, download it for offline play, and switch any song to its music video.
 
-<p align="center">
-    <img src="./media/screenshots.png" width="100%">
-</p>
+Built with Kotlin and Jetpack Compose, and a fork of
+[Symphony](https://github.com/zyrouge/symphony) by [Zyrouge](https://github.com/zyrouge).
 
-## Why?
+## ✨ Features
 
-Why was this created? As I was getting into offline music, most of the popular good-looking music players did not support filename/path based sorting, which is what I really needed to keep my music organized. So I must have forked them and added it right? I could have done that but, I felt like trying out Kotlin and Compose, so I ended up making my own.
+**📂 Your library**
+- Folder-first browsing with include/exclude folders, sorting, and search
+- Albums, artists, album artists, genres, and a unified song list
+- Mini player, queue management, shuffle and repeat
 
-## Links
+**☁️ Cloud layer**
+- Search and stream the Vybe catalog alongside your local files
+- Home feed with charts, "for you" rails, and recently played
+- Downloads to `Music/Vybe` with per-song progress and offline playback
 
--   [Wiki](https://github.com/zyrouge/symphony/wiki)
--   [Discord](https://discord.gg/5k9Hdq7ycm)
--   [Reddit](https://reddit.com/r/symphony_app)
--   [Github Sponsors](https://github.com/sponsors/zyrouge)
--   [Patreon](https://patreon.com/zyrouge)
+**🎬 Video mode**
+- Morphs the player into a full-bleed 16:9 stage without restarting playback
+- Quality and fill/fit controls, plus download of the video itself
+- Choose audio or video per song — each has its own download state
 
-## Contributing
+**🎛️ Playback**
+- Media3 / ExoPlayer engine with seek controls, speed and pitch, sleep timer
+- Gapless playback, audio-focus handling, and a persistent queue
+- Synced and unsynced lyrics, including on the video stage
 
-Before contributing, please read the [Developer Guide](https://github.com/zyrouge/symphony/wiki/Developer-Guide).
+**🎨 Looks**
+- Light / dark theme with dynamic color and a custom primary color
+- Font and content scaling, configurable layouts, and artwork quality settings
 
-Any kind of contribution including creating issues or making pull requests is welcomed. Make sure to keep it pointful. Donations through [GitHub Sponsors](https://github.com/sponsors/zyrouge) or [Patreon](https://patreon.com/zyrouge) helps me to stay motivated to keep working on this project.
+**❤️ Library extras**
+- Favorites as a built-in playlist
+- User playlists with import/export
+- Full-text fuzzy search across everything
 
-[![](https://contrib.rocks/image?repo=zyrouge/symphony)](https://github.com/zyrouge/symphony/graphs/contributors)
+## 📥 Install
 
-## License
+Grab the latest build from the
+[releases page](https://github.com/HaroldMth/vybe/releases/latest).
 
-[AGPL-3.0](./LICENSE)
+> Prefer to build it yourself? See below.
+
+## 🛠️ Build from source
+
+**Prerequisites**
+
+- JDK 17
+- Android SDK (compile SDK 35; the app targets Android 14 and supports Android 9+)
+- Node.js 20+ and npm (used to generate translations before the Gradle build)
+
+```bash
+# 1. Install the tooling that generates i18n sources
+npm ci
+
+# 2. Build a debug APK
+npm run prebuild      # regenerates the translation classes
+./gradlew assembleDebug
+
+# ...or a release build
+./gradlew assembleRelease
+```
+
+The APK lands in `app/build/outputs/apk/`.
+
+## 🧱 Tech
+
+| Layer | What it uses |
+| --- | --- |
+| UI | Jetpack Compose + Material 3 |
+| Playback | AndroidX Media3 / ExoPlayer (HLS + DASH) |
+| Storage | Room, SharedPreferences, MediaStore |
+| Networking | OkHttp + kotlinx.serialization |
+| Metadata | [Metaphony](https://github.com/zyrouge/metaphony) (TagLib) |
+| Images | Coil |
+
+## 🗂️ Project layout
+
+```
+app/         Android app (UI, services, playback, downloads)
+metaphony/   Native tag-reading library
+cli/         Build/release helper scripts (versioning, i18n, changelogs)
+metadata/    Store listing text and per-release changelogs
+i18n/        Translation sources
+```
+
+## 🏷️ Releases & versioning
+
+**1.0 is the main release.** Every release after it is fix-only — no new
+features, just corrections. See [CHANGELOG.md](./CHANGELOG.md) for the history.
+
+The app's own release number is tracked in code (`AppMeta.currentRelease`,
+backed by `AppRelease`) and kept separate from the Android `versionName` /
+`versionCode` that the store uses.
+
+## 🙏 Credits
+
+Vybe would not exist without **[Symphony](https://github.com/zyrouge/symphony)**
+by [Zyrouge](https://github.com/zyrouge) and its contributors. The player
+engine, library scanning, playlists, lyrics, and much of the UI are their work;
+Vybe adds the cloud streaming, downloads, and video layer on top. If you like
+what this app does under the hood, go star the original.
+
+## 📄 License
+
+Licensed under the [GNU AGPL-3.0](./LICENSE), the same license as Symphony.

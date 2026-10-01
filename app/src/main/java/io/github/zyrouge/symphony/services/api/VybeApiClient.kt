@@ -1,6 +1,7 @@
 package io.github.zyrouge.symphony.services.api
 
 import io.github.zyrouge.symphony.Symphony
+import io.github.zyrouge.symphony.services.AppMeta
 import io.github.zyrouge.symphony.utils.HttpClient
 import io.github.zyrouge.symphony.utils.Logger
 import kotlinx.coroutines.Dispatchers
@@ -48,7 +49,7 @@ class VybeApiClient(private val symphony: Symphony) {
         if (!configured.isNullOrEmpty()) {
             return configured
         }
-        return "http://192.168.0.142:4000/api"
+        return AppMeta.defaultApiBaseUrl
     }
 
     /**

@@ -29,6 +29,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import io.github.zyrouge.symphony.Symphony
+import io.github.zyrouge.symphony.services.AppMeta
 import io.github.zyrouge.symphony.services.groove.Groove
 import io.github.zyrouge.symphony.ui.components.AdaptiveSnackbar
 import io.github.zyrouge.symphony.ui.components.IconButtonPlaceholder
@@ -104,7 +105,7 @@ fun GrooveSettingsView(context: ViewContext, route: GrooveSettingsViewRoute) {
                         title = {
                             Text("Vybe API Base URL")
                         },
-                        value = apiBaseUrl ?: "https://vybe-api27.onrender.com/api",
+                        value = apiBaseUrl ?: AppMeta.defaultApiBaseUrl,
                         onReset = {
                             context.symphony.settings.apiBaseUrl.setValue(null)
                         },

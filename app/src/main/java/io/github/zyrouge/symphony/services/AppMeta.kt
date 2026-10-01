@@ -68,6 +68,15 @@ object AppMeta {
 
     const val packageName = "xyz.hanstech.vybe"
 
+    /**
+     * Default Vybe backend, used whenever no override is saved in Settings. Keep this the
+     * single source of truth: the settings screen used to *display* this URL while
+     * [io.github.zyrouge.symphony.services.api.VybeApiClient] silently fell back to a
+     * developer's LAN address, so a fresh install pointed at an unreachable host and every
+     * request hung until its timeout — which reads as the backend being unresponsive.
+     */
+    const val defaultApiBaseUrl = "https://vybe-api27.onrender.com/api"
+
     fun isNightlyBuild() = version.contains("-nightly")
 
     fun fetchLatestVersion() = when {
