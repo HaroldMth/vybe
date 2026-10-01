@@ -10,11 +10,14 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import io.github.zyrouge.symphony.Symphony
 import io.github.zyrouge.symphony.services.api.VybeVideoItem
 import io.github.zyrouge.symphony.services.api.VybeVideoStreamData
@@ -56,6 +59,10 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
         val standalone: VybeVideoItem? = null,
         val stream: VybeVideoStreamData? = null,
         val message: String? = null,
+        /** Technical reason for an error, e.g. the ExoPlayer error code. */
+        val detail: String? = null,
+        /** True while re-fetching a link that just failed to play. */
+        val retrying: Boolean = false,
     ) {
         val engaged get() = phase != Phase.Off
     }
@@ -91,6 +98,7 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
     private var audioSuppressedForLoad = false
     private var audioWasPlaying = false
     private var retriedKey: String? = null
+    private var triedAltUrl = false
     private var fallbackDuration = 0L
 
     // ExoPlayer may only be touched on the main thread, but Radio/RadioSession read
@@ -353,7 +361,7 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
         _hasFrame.value = false
         _isBuffering.value = false
         _aspect.value = 0f
-        _state.value = State(phase = Phase.Loading, key = key, standalone = standalone)
+        _state.value = State(phase = Phase.Loading, key = key, standalone = standalone, retrying = isRetry)
         dispatch(Radio.Events.Player.Paused)
 
         loadJob = scope.launch {
@@ -403,7 +411,8 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
             standalone != null -> (standalone.durationSec ?: 0L) * 1000L
             else -> symphony.groove.song.get(key)?.duration ?: 0L
         }
-        p.setMediaItem(MediaItem.fromUri(stream.url))
+        triedAltUrl = false
+        p.setMediaItem(buildMediaItem(stream))
         p.prepare()
         setVideoTrackEnabled(isAppVisible())
         p.volume = 1f
@@ -441,7 +450,7 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
         }
     }
 
-    private fun fail(message: String) {
+    private fun fail(message: String, detail: String? = null) {
         val s = _state.value
         val wasPlaying = s.phase == Phase.Ready && cachedWantPlaying
         loadJob?.cancel()
@@ -455,7 +464,7 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
         cachedWantPlaying = false
         _hasFrame.value = false
         _isBuffering.value = false
-        _state.value = s.copy(phase = Phase.Error, message = message, stream = null)
+        _state.value = s.copy(phase = Phase.Error, message = message, detail = detail, stream = null, retrying = false)
         // Never leave the listener in silence because a video failed: hand back to the audio.
         val audioOwed = s.standalone == null && (wasPlaying ||
                 (audioSuppressedForLoad && autostartAfterLoad && !symphony.radio.isAudioPlaying))
@@ -508,7 +517,17 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
 
     private fun ensurePlayer(): ExoPlayer {
         player?.let { return it }
+        // Stream links are third-party and often redirect (http -> https, CDN hops), so
+        // allow cross-protocol redirects and don't hang forever on a dead host.
+        val http = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(15_000)
+            .setReadTimeoutMs(20_000)
+            .setUserAgent(USER_AGENT)
         val created = ExoPlayer.Builder(symphony.applicationContext)
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(symphony.applicationContext).setDataSourceFactory(http)
+            )
             .setHandleAudioBecomingNoisy(true)
             .build()
         created.setAudioAttributes(
@@ -556,8 +575,28 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            Logger.warn("VideoMode", "playback error ${error.errorCodeName}", error)
             val s = _state.value
+            Logger.warn(
+                "VideoMode",
+                "playback error ${error.errorCodeName} (${error.errorCode}) " +
+                        "format=${s.stream?.format} type=${s.stream?.type} " +
+                        "url=${s.stream?.url?.substringBefore('?')}",
+                error,
+            )
+            // The backend can also hand out a second link (download_url). Try it before
+            // spending a whole extra round trip re-resolving the video.
+            val failed = s.stream
+            val alt = failed?.let { st ->
+                st.download_url?.takeIf { it.isNotBlank() && it != st.url }
+            }
+            val p = player
+            if (p != null && failed != null && alt != null && !triedAltUrl) {
+                triedAltUrl = true
+                p.setMediaItem(buildMediaItem(failed, alt))
+                p.prepare()
+                p.playWhenReady = autostartAfterLoad
+                return
+            }
             val key = s.key
             if (key != null && retriedKey != key) {
                 // Upstream stream links can expire; refetch once before giving up.
@@ -572,7 +611,7 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
                 )
                 return
             }
-            fail(MESSAGE_PLAYBACK)
+            fail(MESSAGE_PLAYBACK, "${error.errorCodeName} (${error.errorCode})")
         }
     }
 
@@ -592,6 +631,20 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
         // Same path as an audio track ending: loop modes, "pause after this song",
         // and the foreground/background rule in onSongChanging all apply.
         symphony.radio.onVideoEnded()
+    }
+
+    /** The backend may hand back HLS/DASH links with no file extension; use its hint then. */
+    private fun buildMediaItem(stream: VybeVideoStreamData, url: String = stream.url): MediaItem {
+        val hint = listOfNotNull(stream.format, stream.type).joinToString(" ").lowercase()
+        val mime = when {
+            "m3u8" in hint || "hls" in hint -> MimeTypes.APPLICATION_M3U8
+            "mpd" in hint || "dash" in hint -> MimeTypes.APPLICATION_MPD
+            else -> null
+        }
+        return MediaItem.Builder()
+            .setUri(url)
+            .apply { mime?.let { setMimeType(it) } }
+            .build()
     }
 
     private fun refreshCache() {
@@ -675,6 +728,9 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
         private const val TICK_HIDDEN_MS = 1000L
         private const val FADE_MS = 350L
         private const val FADE_STEPS = 12
+        private const val USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) " +
+                    "Chrome/124.0 Mobile Safari/537.36"
         const val MESSAGE_NOT_FOUND = "Couldn't find a video for this song"
         const val MESSAGE_PLAYBACK = "This video can't be played right now"
     }

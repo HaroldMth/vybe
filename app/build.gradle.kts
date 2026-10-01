@@ -121,6 +121,8 @@ dependencies {
     implementation(libs.lifecycle.runtime)
     implementation(libs.media)
     implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.dash)
+    implementation(libs.media3.exoplayer.hls)
     implementation(libs.okhttp3)
     ksp(libs.room.compiler)
     implementation(libs.room.ktx)

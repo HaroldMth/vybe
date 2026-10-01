@@ -12,6 +12,7 @@ object VideoText {
     const val VIDEO_MODE = "Video mode"
     const val VIDEOS = "Videos"
     const val LOADING = "Finding the video..."
+    const val RETRYING = "That link failed, trying another..."
     const val NOT_FOUND = "Couldn't find a video for this song"
     const val PLAYBACK_FAILED = "This video can't be played right now"
     const val TRY_AGAIN = "Try again"

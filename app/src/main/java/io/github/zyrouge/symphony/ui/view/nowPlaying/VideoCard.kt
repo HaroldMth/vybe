@@ -264,7 +264,7 @@ fun VideoCard(
                         PulsingBarsLoader()
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            VideoText.LOADING,
+                            if (state.retrying) VideoText.RETRYING else VideoText.LOADING,
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = Color.White.copy(alpha = 0.8f),
                             ),
@@ -296,6 +296,15 @@ fun VideoCard(
                             },
                             style = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
                         )
+                        state.detail?.let {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = Color.White.copy(alpha = 0.5f),
+                                ),
+                            )
+                        }
                         Spacer(modifier = Modifier.height(14.dp))
                         FilledTonalButton(onClick = {
                             context.haptic(Haptic.Toggle)
