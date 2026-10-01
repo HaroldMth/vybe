@@ -76,31 +76,18 @@ fun NowPlayingBody(context: ViewContext, data: NowPlayingData) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val orientation = ScreenOrientation.fromConstraints(this@BoxWithConstraints)
 
+                if (orientation.isPortrait) {
+                    NowPlayingPortraitBody(context, data, states)
+                    return@BoxWithConstraints
+                }
+
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     containerColor = Color.Transparent,
-                    topBar = {
-                        if (orientation.isPortrait) {
-                            NowPlayingAppBar(context, data, states)
-                        }
-                    },
                     content = { contentPadding ->
                         Box(modifier = Modifier.padding(contentPadding)) {
                             when (orientation) {
-                                ScreenOrientation.PORTRAIT -> Column(modifier = Modifier.fillMaxSize()) {
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxWidth()
-                                            .padding(bottom = 20.dp),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        NowPlayingBodyCover(context, data, states, orientation)
-                                    }
-                                    Column {
-                                        NowPlayingBodyContent(context, data, states)
-                                    }
-                                }
+                                ScreenOrientation.PORTRAIT -> Unit
 
                                 ScreenOrientation.LANDSCAPE -> Row(
                                     modifier = Modifier.fillMaxSize(),

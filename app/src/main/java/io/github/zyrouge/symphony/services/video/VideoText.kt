@@ -18,4 +18,6 @@ object VideoText {
     const val TRY_AGAIN = "Try again"
     const val FILL = "Fill"
     const val FIT = "Fit"
+    const val LYRICS = "Lyrics"
+    const val UP_NEXT = "Up next"
 }

@@ -62,6 +62,8 @@ fun NowPlayingBodyBottomBar(
     context: ViewContext,
     data: NowPlayingData,
     states: NowPlayingStates,
+    // 1 = row fully shown, 0 = collapsed (video layout, where the panel replaces it).
+    rowReveal: () -> Float = { 1f },
 ) {
     val coroutineScope = rememberCoroutineScope()
     val equalizerActivity = rememberLauncherForActivityResult(
@@ -78,6 +80,7 @@ fun NowPlayingBodyBottomBar(
     data.run {
         Row(
             modifier = Modifier
+                .verticalReveal(rowReveal)
                 .fillMaxWidth()
                 .padding(
                     start = 8.dp,

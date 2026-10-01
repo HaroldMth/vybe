@@ -76,11 +76,42 @@ import io.github.zyrouge.symphony.ui.helpers.Haptic
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.helpers.haptic
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.Stable
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
+import kotlin.math.roundToInt
 
 private val CardShape = RoundedCornerShape(20.dp)
 private const val CONTROLS_HIDE_MS = 2500L
 private const val BUFFERING_DELAY_MS = 500L
 private const val REVEAL_MS = 450
+
+/**
+ * Whether the video's overlay controls are showing. Hoisted out of [VideoCard] so the
+ * player's top bar (which sits over the video in the full-bleed layout) hides and shows
+ * together with the card's own chips.
+ */
+@Stable
+class VideoOverlayState {
+    var visible by mutableStateOf(true)
+    var nonce by mutableIntStateOf(0)
+
+    fun toggle() {
+        visible = !visible
+        nonce++
+    }
+
+    /** Restarts the auto-hide timer without changing visibility. */
+    fun poke() {
+        nonce++
+    }
+
+    /** Always shown while nothing is playing, so there is never a way to get stuck. */
+    fun shown(ready: Boolean, isPlaying: Boolean) = !ready || visible || !isPlaying
+}
+
+@Composable
+fun rememberVideoOverlayState() = remember { VideoOverlayState() }
 
 /**
  * The square video card. Artwork sits on top until the first frame is actually drawn and
@@ -94,6 +125,10 @@ fun VideoCard(
     poster: Any?,
     modifier: Modifier = Modifier,
     canSwipe: Boolean = true,
+    // Full-bleed player layout: no rounded card, glow, shadow or border, and no entrance
+    // animation (the screen's own morph does that).
+    stage: Boolean = false,
+    overlay: VideoOverlayState = rememberVideoOverlayState(),
 ) {
     val videoMode = context.symphony.videoMode
     val state by videoMode.state.collectAsState()
@@ -107,7 +142,7 @@ fun VideoCard(
     val revealed = ready && hasFrame
 
     // Soft entrance: the card eases in instead of popping.
-    var entered by remember { mutableStateOf(false) }
+    var entered by remember { mutableStateOf(stage) }
     LaunchedEffect(Unit) { entered = true }
     val enterScale by animateFloatAsState(
         targetValue = if (entered) 1f else 0.94f,
@@ -132,15 +167,13 @@ fun VideoCard(
     )
 
     // Controls: shown on tap, hidden a moment after playback starts, always visible while paused.
-    var controlsVisible by remember { mutableStateOf(true) }
-    var controlsNonce by remember { mutableIntStateOf(0) }
-    LaunchedEffect(controlsVisible, controlsNonce, isPlaying, ready) {
-        if (controlsVisible && isPlaying && ready) {
+    LaunchedEffect(overlay.visible, overlay.nonce, isPlaying, ready) {
+        if (overlay.visible && isPlaying && ready) {
             delay(CONTROLS_HIDE_MS)
-            controlsVisible = false
+            overlay.visible = false
         }
     }
-    val showControls = ready && (controlsVisible || !isPlaying)
+    val showControls = ready && (overlay.visible || !isPlaying)
 
     // The buffering ring only appears if the stall lasts, so quick seeks stay clean.
     var showBuffering by remember { mutableStateOf(false) }
@@ -176,7 +209,7 @@ fun VideoCard(
     ) {
         // Ambient glow: a blurred copy of the artwork behind the card. Only on API 31+,
         // where blur exists; below that an unblurred copy would look like a bug.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (!stage && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             AsyncImage(
                 model = poster,
                 contentDescription = null,
@@ -195,10 +228,15 @@ fun VideoCard(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .shadow(14.dp, CardShape, clip = false)
-                .clip(CardShape)
+                .then(
+                    if (stage) Modifier
+                    else Modifier.shadow(14.dp, CardShape, clip = false).clip(CardShape),
+                )
                 .background(Color.Black)
-                .border(0.5.dp, Color.White.copy(alpha = 0.12f), CardShape),
+                .then(
+                    if (stage) Modifier
+                    else Modifier.border(0.5.dp, Color.White.copy(alpha = 0.12f), CardShape),
+                ),
             contentAlignment = Alignment.Center,
         ) {
             if (ready) {
@@ -362,10 +400,7 @@ fun VideoCard(
                     .pointerInput(ready) {
                         detectTapGestures(
                             onTap = {
-                                if (ready) {
-                                    controlsVisible = !controlsVisible
-                                    controlsNonce++
-                                }
+                                if (ready) overlay.toggle()
                             },
                             onDoubleTap = { offset ->
                                 if (!ready) return@detectTapGestures
@@ -390,7 +425,7 @@ fun VideoCard(
                                         context.symphony.radio.shorty.playPause()
                                     }
                                 }
-                                controlsNonce++
+                                overlay.poke()
                             },
                         )
                     },
@@ -420,7 +455,7 @@ fun VideoCard(
 
             // Chips: the quality (only when the API reports one) and the fill/fit switch.
             AnimatedVisibility(
-                visible = showControls,
+                visible = showControls && !stage,
                 modifier = Modifier.align(Alignment.TopEnd),
                 enter = fadeIn(tween(250)),
                 exit = fadeOut(tween(400)),
@@ -432,7 +467,7 @@ fun VideoCard(
                         .clickable {
                             context.haptic(Haptic.Toggle)
                             videoMode.toggleFill()
-                            controlsNonce++
+                            overlay.poke()
                         },
                     shape = RoundedCornerShape(50),
                     color = Color.Black.copy(alpha = 0.55f),
@@ -471,9 +506,13 @@ fun VideoCard(
 }
 
 /**
- * A TextureView (not a SurfaceView), so the rounded corners, fades and scale animations
- * of the card apply to the video too. It is sized from the video's real aspect ratio and
- * clipped by its parent, which is what makes "fill" actually fill the square.
+ * A TextureView (not a SurfaceView), so the rounded corners, fades and morph animations
+ * of whatever holds it apply to the video too. It is sized from the video's real aspect
+ * ratio inside whatever rectangle it is given (a square card or the full-bleed 16:9
+ * stage) and clipped by its parent, which is what makes "fill" actually fill.
+ *
+ * The size is worked out in a layout modifier instead of composition, so resizing it every
+ * frame during the audio/video morph doesn't recompose anything.
  */
 @Composable
 private fun VideoSurface(
@@ -482,41 +521,46 @@ private fun VideoSurface(
     fill: Boolean,
     alpha: Float,
 ) {
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val side: Dp = min(maxWidth, maxHeight)
-        val ratio = if (aspect > 0f) aspect else 16f / 9f
-        val wide = ratio >= 1f
-        val targetWidth = when {
-            fill && wide -> side * ratio
-            fill -> side
-            wide -> side
-            else -> side * ratio
-        }
-        val targetHeight = when {
-            fill && wide -> side
-            fill -> side / ratio
-            wide -> side / ratio
-            else -> side
-        }
-        val width by animateDpAsState(targetWidth, tween(350, easing = FastOutSlowInEasing), label = "video-w")
-        val height by animateDpAsState(targetHeight, tween(350, easing = FastOutSlowInEasing), label = "video-h")
+    val fillAmount by animateFloatAsState(
+        targetValue = if (fill) 1f else 0f,
+        animationSpec = tween(350, easing = FastOutSlowInEasing),
+        label = "video-fill",
+    )
+    val ratio = if (aspect > 0f) aspect else 16f / 9f
 
-        Box(
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clipToBounds(),
+        contentAlignment = Alignment.Center,
+    ) {
+        AndroidView(
+            factory = { ctx ->
+                TextureView(ctx).also { context.symphony.videoMode.attachTexture(it) }
+            },
+            onRelease = { context.symphony.videoMode.detachTexture(it) },
             modifier = Modifier
-                .fillMaxSize()
-                .clipToBounds(),
-            contentAlignment = Alignment.Center,
-        ) {
-            AndroidView(
-                factory = { ctx ->
-                    TextureView(ctx).also { context.symphony.videoMode.attachTexture(it) }
-                },
-                onRelease = { context.symphony.videoMode.detachTexture(it) },
-                modifier = Modifier
-                    .requiredSize(width, height)
-                    .graphicsLayer { this.alpha = alpha },
-            )
-        }
+                .layout { measurable, constraints ->
+                    val cw = constraints.maxWidth.toFloat()
+                    val ch = constraints.maxHeight.toFloat()
+                    val containerRatio = if (ch > 0f) cw / ch else ratio
+                    val wider = ratio >= containerRatio
+                    val fitW = if (wider) cw else ch * ratio
+                    val fitH = if (wider) cw / ratio else ch
+                    val fillW = if (wider) ch * ratio else cw
+                    val fillH = if (wider) ch else cw / ratio
+                    val w = (fitW + (fillW - fitW) * fillAmount).roundToInt().coerceAtLeast(1)
+                    val h = (fitH + (fillH - fitH) * fillAmount).roundToInt().coerceAtLeast(1)
+                    val placeable = measurable.measure(Constraints.fixed(w, h))
+                    layout(constraints.maxWidth, constraints.maxHeight) {
+                        placeable.place(
+                            (constraints.maxWidth - w) / 2,
+                            (constraints.maxHeight - h) / 2,
+                        )
+                    }
+                }
+                .graphicsLayer { this.alpha = alpha },
+        )
     }
 }
 

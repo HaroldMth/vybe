@@ -97,10 +97,12 @@ fun NowPlayingBodyCover(
 }
 
 @Composable
-private fun NowPlayingBodyCoverLyrics(
+internal fun NowPlayingBodyCoverLyrics(
     context: ViewContext,
     orientation: ScreenOrientation,
     forceUnsynced: Boolean = false,
+    // The video panel already has a "Lyrics" tab, so it drops the card's own title.
+    showTitle: Boolean = true,
 ) {
     val keepScreenAwake by context.symphony.settings.lyricsKeepScreenAwake.flow.collectAsState()
     val lyricsData by context.symphony.radio.observatory.lyrics.collectAsState()
@@ -183,14 +185,16 @@ private fun NowPlayingBodyCoverLyrics(
                     },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    "LYRICS",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = androidx.compose.ui.unit.TextUnit(1.5f, androidx.compose.ui.unit.TextUnitType.Sp),
-                    ),
-                )
+                if (showTitle) {
+                    Text(
+                        "LYRICS",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = androidx.compose.ui.unit.TextUnit(1.5f, androidx.compose.ui.unit.TextUnitType.Sp),
+                        ),
+                    )
+                }
                 Spacer(modifier = Modifier.weight(1f))
                 // Source pill
                 val source = lyricsData?.source
@@ -222,14 +226,20 @@ private fun NowPlayingBodyCoverLyrics(
 }
 
 @Composable
-private fun NowPlayingBodyCoverArtwork(context: ViewContext, song: Song) {
+internal fun NowPlayingBodyCoverArtwork(
+    context: ViewContext,
+    song: Song,
+    // true = fill whatever rectangle the morphing stage gives it and leave the rounding
+    // to the stage, instead of drawing a rounded square.
+    fillBounds: Boolean = false,
+) {
     BoxWithConstraints {
         val dimension = min(this@BoxWithConstraints.maxHeight, this@BoxWithConstraints.maxWidth)
         val downloadStates by context.symphony.downloader.states.collectAsState()
         val isDownloaded = downloadStates[song.id]?.status ==
             io.github.zyrouge.symphony.services.download.DownloadStatus.COMPLETED
 
-        Box(modifier = Modifier.size(dimension)) {
+        Box(modifier = if (fillBounds) Modifier.fillMaxSize() else Modifier.size(dimension)) {
             AnimatedContent(
                 label = "now-playing-body-cover-artwork",
                 modifier = Modifier.fillMaxSize(),
@@ -248,7 +258,7 @@ private fun NowPlayingBodyCoverArtwork(context: ViewContext, song: Song) {
                     filterQuality = FilterQuality.High,
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(20.dp)) // Larger radius than before (was 12.dp)
+                        .clip(RoundedCornerShape(if (fillBounds) 0.dp else 20.dp)) // Larger radius than before (was 12.dp)
                         .swipeable(
                             minimumDragAmount = 100f,
                             onSwipeLeft = {

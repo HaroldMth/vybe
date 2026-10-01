@@ -64,6 +64,8 @@ import io.github.zyrouge.symphony.ui.view.NowPlayingLyricsLayout
 import io.github.zyrouge.symphony.ui.view.NowPlayingStates
 import io.github.zyrouge.symphony.utils.DurationUtils
 
+private val ZeroProgress: () -> Float = { 0f }
+
 /**
  * Bottom section of the Now Playing screen:
  *   Song title + LYRICS pill
@@ -73,7 +75,13 @@ import io.github.zyrouge.symphony.utils.DurationUtils
  *   Extra options moved to BottomBar's … menu
  */
 @Composable
-fun NowPlayingBodyContent(context: ViewContext, data: NowPlayingData, states: NowPlayingStates) {
+fun NowPlayingBodyContent(
+    context: ViewContext,
+    data: NowPlayingData,
+    states: NowPlayingStates,
+    // 0 = audio layout, 1 = video layout. Landscape never morphs, so it stays at 0.
+    progress: () -> Float = ZeroProgress,
+) {
     val showLyrics by states.showLyrics.collectAsState()
 
     data.run {
@@ -136,7 +144,9 @@ fun NowPlayingBodyContent(context: ViewContext, data: NowPlayingData, states: No
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // LYRICS pill button
+                // LYRICS pill. Collapses away as the video layout takes over; the lyrics then
+                // live in the video panel.
+                Box(modifier = Modifier.revealWidth { 1f - progress() }) {
                 Surface(
                     shape = RoundedCornerShape(50),
                     modifier = Modifier
@@ -181,6 +191,12 @@ fun NowPlayingBodyContent(context: ViewContext, data: NowPlayingData, states: No
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     )
                 }
+                }
+
+                // Favourite / download / more: slide in here from the top bar in video mode.
+                Box(modifier = Modifier.revealWidth { progress() }) {
+                    VideoTitleActions(context, data, states)
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -196,7 +212,7 @@ fun NowPlayingBodyContent(context: ViewContext, data: NowPlayingData, states: No
             Spacer(modifier = Modifier.height(4.dp))
 
             // ── Bottom bar (extra options: queue count, ···) ──────────────────
-            NowPlayingBodyBottomBar(context, data, states)
+            NowPlayingBodyBottomBar(context, data, states, rowReveal = { 1f - progress() })
         }
     }
 }
