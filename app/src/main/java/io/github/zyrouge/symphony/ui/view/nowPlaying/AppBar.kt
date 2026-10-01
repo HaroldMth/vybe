@@ -175,6 +175,10 @@ fun NowPlayingMorphAppBar(
     // Which of the two icon groups can be tapped (the other is fading out).
     val audioActive by remember { derivedStateOf { progress() < 0.5f } }
     val videoActive = !audioActive && overlayShown
+    // A disabled button still swallows taps, so anything that isn't visible must be out of
+    // the tree entirely, not just faded or disabled. Otherwise invisible video icons sit
+    // on top of the audio icons (and over the video itself) and eat the touches.
+    val overlayVisible = overlayAlpha > 0.01f
 
     Box(modifier = Modifier.fillMaxWidth()) {
         // Scrim so white icons stay legible on bright video frames.
@@ -205,9 +209,8 @@ fun NowPlayingMorphAppBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Collapse / down: in both modes, same place.
-            IconButton(
+            if (audioActive || overlayVisible) IconButton(
                 onClick = { context.navController.popBackStack() },
-                enabled = audioActive || overlayShown,
                 modifier = Modifier.graphicsLayer {
                     alpha = 1f - progress() * (1f - overlayAlpha)
                 },
@@ -273,8 +276,9 @@ fun NowPlayingMorphAppBar(
                     DownloadIconButton(context, data.song, tint = Color.White)
                 }
 
-                // Video: ▶ ⛶. Fades in over the second half.
-                Row(
+                // Video: ▶ ⛶. Fades in over the second half, and is gone entirely while the
+                // overlay is hidden so taps reach the video.
+                if (!audioActive && overlayVisible) Row(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .graphicsLayer {
