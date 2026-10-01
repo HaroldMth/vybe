@@ -29,6 +29,40 @@ object AppMeta {
 
     const val version = "v${BuildConfig.VERSION_NAME}"
     var latestVersion: String? = null
+
+    /**
+     * The app's own release. 1.0 is the main release; everything after it is a fix.
+     * Independent of [version] (the Android versionName) so store/build numbering can
+     * move without disturbing the app's release history. See `CHANGELOG.md`.
+     */
+    val currentRelease = AppRelease.V1_0
+
+    /** Human-readable name of the current release, e.g. `"1.0"`. */
+    val currentReleaseName get() = currentRelease.toString()
+
+    /** The release the app was last launched on, once [recordRelease] has run. */
+    var previousRelease: AppRelease? = null
+        private set
+
+    /**
+     * Records the release currently running and returns the one the app last ran on
+     * (null on a first install, or when nothing usable was stored). A future release can
+     * compare the two to decide what an upgrade needs to do — re-check data, show what's
+     * new, and so on.
+     */
+    fun recordRelease(settings: Settings): AppRelease? {
+        val previous = AppRelease.parse(settings.lastSeenRelease.value)
+        settings.lastSeenRelease.setValue(currentRelease.toString())
+        previousRelease = previous
+        return previous
+    }
+
+    /** True when the running release is newer than [other] (null is treated as a fresh install). */
+    fun isNewerThan(other: AppRelease?) = other == null || currentRelease > other
+
+    /** True when [candidate] is newer than the release currently running. */
+    fun isUpgrade(candidate: AppRelease) = candidate > currentRelease
+
     const val githubLatestReleaseUrl = "$githubRepositoryUrl/releases/latest"
     const val githubIssuesUrl = "$githubRepositoryUrl/issues"
 

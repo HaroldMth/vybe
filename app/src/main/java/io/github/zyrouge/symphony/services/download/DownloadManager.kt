@@ -8,6 +8,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.net.toUri
 import io.github.zyrouge.symphony.Symphony
+import io.github.zyrouge.symphony.services.api.VybeVideoStreamData
 import io.github.zyrouge.symphony.services.groove.Song
 import io.github.zyrouge.symphony.utils.Logger
 import io.github.zyrouge.symphony.utils.SongJson
@@ -51,11 +52,21 @@ class DownloadManager(private val symphony: Symphony) {
         symphony.applicationContext.getSharedPreferences("vybe_downloads", Context.MODE_PRIVATE)
     }
 
-    // songId -> content/file URI string, for completed downloads only.
+    // songId -> content/file URI string, for completed AUDIO downloads only.
     private val localUris = ConcurrentHashMap<String, String>()
 
     private val _states = MutableStateFlow<Map<String, DownloadState>>(emptyMap())
     val states: StateFlow<Map<String, DownloadState>> = _states.asStateFlow()
+
+    // Video downloads are tracked completely separately from the audio ones: the same
+    // song can have either, both or neither saved, and each has its own status/icon.
+    private val videoPrefs by lazy {
+        symphony.applicationContext
+            .getSharedPreferences("vybe_video_downloads", Context.MODE_PRIVATE)
+    }
+    private val videoLocalUris = ConcurrentHashMap<String, String>()
+    private val _videoStates = MutableStateFlow<Map<String, DownloadState>>(emptyMap())
+    val videoStates: StateFlow<Map<String, DownloadState>> = _videoStates.asStateFlow()
 
     init {
         prefs.all.forEach { (key, value) ->
@@ -64,7 +75,15 @@ class DownloadManager(private val symphony: Symphony) {
             }
             localUris[key] = value
         }
+        videoPrefs.all.forEach { (key, value) ->
+            if (value is String && value.isNotBlank()) {
+                videoLocalUris[key] = value
+            }
+        }
         _states.value = localUris.keys.associateWith {
+            DownloadState(DownloadStatus.COMPLETED, 1f)
+        }
+        _videoStates.value = videoLocalUris.keys.associateWith {
             DownloadState(DownloadStatus.COMPLETED, 1f)
         }
         // Downloaded songs live only as a songId->URI pair on disk; the actual
@@ -146,6 +165,166 @@ class DownloadManager(private val symphony: Symphony) {
         }
     }
 
+    // ── Video downloads ──────────────────────────────────────────────────────────
+
+    fun isVideoDownloaded(songId: String) = videoLocalUris.containsKey(songId)
+
+    fun videoStateFor(songId: String): DownloadState = videoStates.value[songId] ?: DownloadState()
+
+    /** Playback should call this before resolving a network video stream. */
+    fun videoUriFor(songId: String): Uri? = videoLocalUris[songId]?.toUri()
+
+    /**
+     * Downloads the video copy of a song, saving it to Movies/Vybe. The stream is reused
+     * from [stream] when the player has already resolved one (so opening the chooser while
+     * a video is playing doesn't trigger a second lookup), otherwise it is fetched here.
+     */
+    fun downloadVideo(song: Song, stream: VybeVideoStreamData? = null) {
+        if (isVideoDownloaded(song.id)) return
+        val current = _videoStates.value[song.id]?.status
+        if (current == DownloadStatus.QUEUED || current == DownloadStatus.DOWNLOADING) return
+
+        setVideoState(song.id, DownloadState(DownloadStatus.QUEUED, 0f))
+        coroutineScope.launch {
+            try {
+                setVideoState(song.id, DownloadState(DownloadStatus.DOWNLOADING, 0f))
+                val resolved = stream ?: symphony.vybeApi.getVideoStream(
+                    input = song.title,
+                    title = song.title,
+                    artist = song.artists.firstOrNull(),
+                    durationSec = song.duration / 1000,
+                )
+                // download_url is the direct media file; url can be an adaptive manifest
+                // (m3u8/mpd) that is not itself a saveable video, so prefer download_url.
+                val url = resolved?.download_url?.takeIf { it.isNotBlank() }
+                    ?: resolved?.url?.takeIf { it.isNotBlank() }
+                    ?: throw IOException("no video stream found for ${song.id}")
+                val uri = performVideoDownload(song, url)
+                videoLocalUris[song.id] = uri.toString()
+                videoPrefs.edit().putString(song.id, uri.toString()).apply()
+                setVideoState(song.id, DownloadState(DownloadStatus.COMPLETED, 1f))
+            } catch (err: Exception) {
+                Logger.error("DownloadManager", "video download failed for ${song.id}", err)
+                setVideoState(song.id, DownloadState(DownloadStatus.FAILED, 0f))
+            }
+        }
+    }
+
+    fun removeVideoDownload(songId: String) {
+        val uriStr = videoLocalUris.remove(songId) ?: return
+        videoPrefs.edit().remove(songId).apply()
+        setVideoState(songId, DownloadState(DownloadStatus.NONE, 0f))
+        try {
+            val uri = uriStr.toUri()
+            if (uri.scheme == "file") {
+                uri.path?.let { File(it).delete() }
+            } else {
+                symphony.applicationContext.contentResolver.delete(uri, null, null)
+            }
+        } catch (err: Exception) {
+            Logger.error("DownloadManager", "failed deleting video download for $songId", err)
+        }
+    }
+
+    private fun performVideoDownload(song: Song, url: String): Uri {
+        val context = symphony.applicationContext
+        val request = Request.Builder().url(url).build()
+        val response = symphony.vybeApi.httpClient.newCall(request).execute()
+        if (!response.isSuccessful) {
+            response.close()
+            throw IOException("HTTP ${response.code} while downloading video ${song.id}")
+        }
+        val body = response.body ?: throw IOException("empty video response body for ${song.id}")
+        val contentLength = body.contentLength()
+        val fileName = sanitizeVideoFileName(song, url)
+
+        var targetUri: Uri? = null
+        try {
+            val output: OutputStream
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Video.Media.DISPLAY_NAME, fileName)
+                    put(MediaStore.Video.Media.MIME_TYPE, videoMimeType(url))
+                    put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/Vybe")
+                    put(MediaStore.Video.Media.IS_PENDING, 1)
+                }
+                val collection =
+                    MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                val inserted = context.contentResolver.insert(collection, values)
+                    ?: throw IOException("failed to create MediaStore entry for video ${song.id}")
+                targetUri = inserted
+                output = context.contentResolver.openOutputStream(inserted)
+                    ?: throw IOException("failed to open output stream for video ${song.id}")
+            } else {
+                val moviesDir = File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
+                    "Vybe",
+                )
+                if (!moviesDir.exists()) moviesDir.mkdirs()
+                val file = File(moviesDir, fileName)
+                targetUri = file.toUri()
+                output = FileOutputStream(file)
+            }
+
+            body.byteStream().use { input ->
+                output.use { out ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var bytesCopied = 0L
+                    var read = input.read(buffer)
+                    while (read >= 0) {
+                        out.write(buffer, 0, read)
+                        bytesCopied += read
+                        if (contentLength > 0) {
+                            val progress = (bytesCopied.toFloat() / contentLength).coerceIn(0f, 1f)
+                            setVideoState(
+                                song.id,
+                                DownloadState(DownloadStatus.DOWNLOADING, progress),
+                            )
+                        }
+                        read = input.read(buffer)
+                    }
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }
+                context.contentResolver.update(targetUri, values, null, null)
+            }
+
+            return targetUri
+        } catch (err: Exception) {
+            targetUri?.let {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && it.scheme != "file") {
+                        context.contentResolver.delete(it, null, null)
+                    } else {
+                        it.path?.let { path -> File(path).delete() }
+                    }
+                } catch (_: Exception) {
+                }
+            }
+            throw err
+        }
+    }
+
+    private fun sanitizeVideoFileName(song: Song, url: String): String {
+        val artist = song.artists.firstOrNull() ?: "Unknown"
+        val raw = "$artist - ${song.title}"
+        val cleaned = raw.replace(Regex("""[\\/:*?"<>|]"""), "_").trim().ifBlank { song.id }
+        val extension = when {
+            "m3u8" in url -> "m3u8"
+            "mpd" in url -> "mpd"
+            else -> "mp4"
+        }
+        return "$cleaned.$extension"
+    }
+
+    private fun videoMimeType(url: String): String = when {
+        "m3u8" in url -> "application/x-mpegURL"
+        "mpd" in url -> "application/dash+xml"
+        else -> "video/mp4"
+    }
+
     private fun writeSongSnapshot(song: Song) {
         try {
             prefs.edit().putString(META_PREFIX + song.id, SongJson.encode(song)).apply()
@@ -166,6 +345,10 @@ class DownloadManager(private val symphony: Symphony) {
 
     private fun setState(songId: String, state: DownloadState) {
         _states.update { it + (songId to state) }
+    }
+
+    private fun setVideoState(songId: String, state: DownloadState) {
+        _videoStates.update { it + (songId to state) }
     }
 
     private fun performDownload(song: Song): Uri {

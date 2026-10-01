@@ -48,8 +48,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.zyrouge.symphony.services.groove.Groove
 import io.github.zyrouge.symphony.services.groove.repositories.SongRepository
-import io.github.zyrouge.symphony.services.radio.Radio
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
+import io.github.zyrouge.symphony.ui.helpers.playSong
 import io.github.zyrouge.symphony.ui.helpers.navigateToFolder
 import io.github.zyrouge.symphony.utils.SimpleFileSystem
 import io.github.zyrouge.symphony.utils.SimplePath
@@ -263,10 +263,7 @@ fun SongExplorerList(
                         ) { i, entry ->
                             context.symphony.groove.song.get(entry.key)?.let { song ->
                                 SongCard(context, song) {
-                                    context.symphony.radio.shorty.playQueue(
-                                        sortedEntities.files.keys.toList(),
-                                        Radio.PlayOptions(index = i)
-                                    )
+                                    context.playSong(song.id)
                                 }
                             }
                         }

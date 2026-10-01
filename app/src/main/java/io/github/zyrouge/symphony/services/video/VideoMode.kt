@@ -15,6 +15,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -381,6 +382,14 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
     }
 
     private suspend fun resolveStream(key: String, standalone: VybeVideoItem?): VybeVideoStreamData? {
+        // A downloaded video always wins, so video playback works offline and never
+        // re-fetches a stream that is already on disk. Standalone (search) videos have
+        // no song id to key off, so they are unaffected.
+        if (standalone == null) {
+            symphony.downloader.videoUriFor(key)?.let {
+                return VybeVideoStreamData(url = it.toString(), format = "mp4", type = "video/mp4")
+            }
+        }
         streamCache[key]?.let { return it }
         val stream = when {
             standalone != null -> symphony.vybeApi.getVideoStream(
@@ -526,7 +535,12 @@ class VideoMode(private val symphony: Symphony) : Symphony.Hooks {
             .setUserAgent(USER_AGENT)
         val created = ExoPlayer.Builder(symphony.applicationContext)
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(symphony.applicationContext).setDataSourceFactory(http)
+                DefaultMediaSourceFactory(symphony.applicationContext)
+                    // Wrap the HTTP source in a DefaultDataSource so a downloaded video's
+                    // content:// (or file://) URI plays back offline, not just http(s).
+                    .setDataSourceFactory(
+                        DefaultDataSource.Factory(symphony.applicationContext, http)
+                    )
             )
             .setHandleAudioBecomingNoisy(true)
             .build()

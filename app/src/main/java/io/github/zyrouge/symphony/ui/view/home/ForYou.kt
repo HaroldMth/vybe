@@ -61,6 +61,7 @@ import io.github.zyrouge.symphony.services.groove.Song
 import io.github.zyrouge.symphony.ui.components.IconTextBody
 import io.github.zyrouge.symphony.ui.components.PulsingBarsLoader
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
+import io.github.zyrouge.symphony.ui.helpers.playSong
 import io.github.zyrouge.symphony.ui.view.AlbumArtistViewRoute
 import io.github.zyrouge.symphony.ui.view.AlbumViewRoute
 import io.github.zyrouge.symphony.ui.view.ArtistViewRoute
@@ -152,7 +153,7 @@ fun ForYouView(context: ViewContext) {
                             song = heroSong,
                             enabled = !songsIsUpdating,
                             // Playing a single song starts an endless queue of related songs.
-                            onPlay = { context.symphony.radio.shorty.playQueue(heroSong.id) },
+                            onPlay = { context.playSong(heroSong.id) },
                             onShuffle = {
                                 context.symphony.radio.shorty.playQueue(heroQueue, shuffle = true)
                             },

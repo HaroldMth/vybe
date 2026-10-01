@@ -59,6 +59,7 @@ import coil.compose.AsyncImage
 import io.github.zyrouge.symphony.services.download.DownloadStatus
 import io.github.zyrouge.symphony.ui.components.NewPlaylistDialog
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
+import io.github.zyrouge.symphony.ui.helpers.playSong
 import io.github.zyrouge.symphony.ui.view.ArtistViewRoute
 import io.github.zyrouge.symphony.ui.view.DownloadsViewRoute
 import io.github.zyrouge.symphony.ui.view.PlaylistViewRoute
@@ -156,7 +157,7 @@ fun LibraryView(context: ViewContext) {
                     items(favoriteSongIds.take(12).toList(), key = { it }) { songId ->
                         context.symphony.groove.song.get(songId)?.let { song ->
                             SongCompactTile(context, songId = songId, title = song.title, subtitle = song.artists.joinToString(), artworkRequest = song.createArtworkImageRequest(context.symphony).build()) {
-                                context.symphony.radio.shorty.playQueue(songId)
+                                context.playSong(songId)
                             }
                         }
                     }

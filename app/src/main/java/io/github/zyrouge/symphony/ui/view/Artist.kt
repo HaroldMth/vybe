@@ -65,6 +65,7 @@ import io.github.zyrouge.symphony.ui.components.ArtistDropdownMenu
 import io.github.zyrouge.symphony.ui.components.GenericGrooveCard
 import io.github.zyrouge.symphony.ui.components.SongCard
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
+import io.github.zyrouge.symphony.ui.helpers.playSong
 import io.github.zyrouge.symphony.utils.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -269,7 +270,7 @@ fun ArtistView(context: ViewContext, artistName: String) {
                         val songId = topSongs[idx]
                         context.symphony.groove.song.get(songId)?.let { song ->
                             SongCard(context, song) {
-                                context.symphony.radio.shorty.playQueue(songIds)
+                                context.playSong(song.id)
                             }
                         }
                     }
@@ -402,7 +403,7 @@ fun ArtistView(context: ViewContext, artistName: String) {
                             val songId = songIds[idx]
                             context.symphony.groove.song.get(songId)?.let { song ->
                                 SongCard(context, song) {
-                                    context.symphony.radio.shorty.playQueue(songIds)
+                                    context.playSong(song.id)
                                 }
                             }
                         }

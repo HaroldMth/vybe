@@ -268,7 +268,15 @@ fun VideoCard(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer { alpha = posterAlpha }
-                        .blur(posterBlur),
+                        // The full-bleed stage resizes its child on every frame of the
+                        // audio/video morph, and a full-screen RenderEffect blur cannot be
+                        // cached across those size changes, so it was re-blurring each
+                        // frame. In stage mode the poster is only a brief placeholder, so
+                        // skip the expensive blur there.
+                        .then(
+                            if (!stage && posterBlur > 0.dp) Modifier.blur(posterBlur)
+                            else Modifier
+                        ),
                 )
             }
 

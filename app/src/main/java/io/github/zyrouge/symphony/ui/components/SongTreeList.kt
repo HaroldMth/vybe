@@ -56,8 +56,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import io.github.zyrouge.symphony.services.groove.repositories.SongRepository
-import io.github.zyrouge.symphony.services.radio.Radio
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
+import io.github.zyrouge.symphony.ui.helpers.playSong
 import io.github.zyrouge.symphony.utils.SimplePath
 import io.github.zyrouge.symphony.utils.StringListUtils
 
@@ -246,10 +246,7 @@ fun SongTreeListContent(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(5.dp))
                                 .clickable {
-                                    context.symphony.radio.shorty.playQueue(
-                                        songIds,
-                                        Radio.PlayOptions(index = songIds.indexOf(song.id))
-                                    )
+                                    context.playSong(song.id)
                                 }
                                 .padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)
                         ) {

@@ -338,6 +338,9 @@ class Settings(private val symphony: Symphony) {
     val lyricsKeepScreenAwake = BooleanEntry("lyrics_keep_screen_awake", true)
     val apiBaseUrl = NullableStringEntry("api_base_url")
 
+    /** The app release recorded on the last launch; see [AppMeta.recordRelease]. */
+    val lastSeenRelease = NullableStringEntry("last_seen_release")
+
     private fun getSharedPreferences() = symphony.applicationContext
         .getSharedPreferences("settings", Context.MODE_PRIVATE)
 }

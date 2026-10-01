@@ -233,72 +233,89 @@ internal fun NowPlayingBodyCoverArtwork(
     // to the stage, instead of drawing a rounded square.
     fillBounds: Boolean = false,
 ) {
-    BoxWithConstraints {
-        val dimension = min(this@BoxWithConstraints.maxHeight, this@BoxWithConstraints.maxWidth)
-        val downloadStates by context.symphony.downloader.states.collectAsState()
-        val isDownloaded = downloadStates[song.id]?.status ==
-            io.github.zyrouge.symphony.services.download.DownloadStatus.COMPLETED
+    if (fillBounds) {
+        // The morphing stage measures its child on every frame of the audio/video morph.
+        // BoxWithConstraints is a SubcomposeLayout, so keeping it here re-subcomposed the
+        // artwork each frame. Filling the parent needs no constraints at all, so skip it.
+        CoverArtwork(context, song, Modifier.fillMaxSize(), fillBounds = true)
+    } else {
+        BoxWithConstraints {
+            val dimension = min(this@BoxWithConstraints.maxHeight, this@BoxWithConstraints.maxWidth)
+            CoverArtwork(context, song, Modifier.size(dimension), fillBounds = false)
+        }
+    }
+}
 
-        Box(modifier = if (fillBounds) Modifier.fillMaxSize() else Modifier.size(dimension)) {
-            AnimatedContent(
-                label = "now-playing-body-cover-artwork",
-                modifier = Modifier.fillMaxSize(),
-                targetState = song,
-                transitionSpec = {
-                    FadeTransition.enterTransition()
-                        .togetherWith(FadeTransition.exitTransition())
-                },
-            ) { targetStateSong ->
-                AsyncImage(
-                    targetStateSong
-                        .createArtworkImageRequest(context.symphony)
-                        .build(),
-                    null,
-                    contentScale = ContentScale.Crop,
-                    filterQuality = FilterQuality.High,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(if (fillBounds) 0.dp else 20.dp)) // Larger radius than before (was 12.dp)
-                        .swipeable(
-                            minimumDragAmount = 100f,
-                            onSwipeLeft = {
-                                if (context.symphony.radio.canJumpToNext()) {
-                                    context.symphony.radio.jumpToNext()
-                                }
-                            },
-                            onSwipeRight = {
-                                if (context.symphony.radio.canJumpToPrevious()) {
-                                    context.symphony.radio.jumpToPrevious()
-                                }
-                            },
-                        )
-                        .pointerInput(Unit) {
-                            detectTapGestures { _ ->
-                                context.symphony.groove.album
-                                    .getIdFromSong(song)
-                                    ?.let {
-                                        context.navController.navigateSafe(AlbumViewRoute(it))
-                                    }
+@Composable
+private fun CoverArtwork(
+    context: ViewContext,
+    song: Song,
+    modifier: Modifier,
+    fillBounds: Boolean,
+) {
+    val downloadStates by context.symphony.downloader.states.collectAsState()
+    val isDownloaded = downloadStates[song.id]?.status ==
+        io.github.zyrouge.symphony.services.download.DownloadStatus.COMPLETED
+
+    Box(modifier = modifier) {
+        AnimatedContent(
+            label = "now-playing-body-cover-artwork",
+            modifier = Modifier.fillMaxSize(),
+            targetState = song,
+            transitionSpec = {
+                FadeTransition.enterTransition()
+                    .togetherWith(FadeTransition.exitTransition())
+            },
+        ) { targetStateSong ->
+            AsyncImage(
+                targetStateSong
+                    .createArtworkImageRequest(context.symphony)
+                    .build(),
+                null,
+                contentScale = ContentScale.Crop,
+                filterQuality = FilterQuality.High,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(if (fillBounds) 0.dp else 20.dp)) // Larger radius than before (was 12.dp)
+                    .swipeable(
+                        minimumDragAmount = 100f,
+                        onSwipeLeft = {
+                            if (context.symphony.radio.canJumpToNext()) {
+                                context.symphony.radio.jumpToNext()
                             }
-                        }
-                )
-            }
-
-            if (isDownloaded) {
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(10.dp),
-                    shape = RoundedCornerShape(50),
-                    color = Color.Black.copy(alpha = 0.55f),
-                ) {
-                    Icon(
-                        Icons.Filled.CloudDone,
-                        null,
-                        modifier = Modifier.padding(6.dp).size(18.dp),
-                        tint = Color.White,
+                        },
+                        onSwipeRight = {
+                            if (context.symphony.radio.canJumpToPrevious()) {
+                                context.symphony.radio.jumpToPrevious()
+                            }
+                        },
                     )
-                }
+                    .pointerInput(Unit) {
+                        detectTapGestures { _ ->
+                            context.symphony.groove.album
+                                .getIdFromSong(song)
+                                ?.let {
+                                    context.navController.navigateSafe(AlbumViewRoute(it))
+                                }
+                        }
+                    }
+            )
+        }
+
+        if (isDownloaded) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp),
+                shape = RoundedCornerShape(50),
+                color = Color.Black.copy(alpha = 0.55f),
+            ) {
+                Icon(
+                    Icons.Filled.CloudDone,
+                    null,
+                    modifier = Modifier.padding(6.dp).size(18.dp),
+                    tint = Color.White,
+                )
             }
         }
     }

@@ -47,6 +47,7 @@ import io.github.zyrouge.symphony.services.home.FeedSection
 import io.github.zyrouge.symphony.ui.components.PlaylistTile
 import io.github.zyrouge.symphony.ui.components.SongDropdownMenu
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
+import io.github.zyrouge.symphony.ui.helpers.playSong
 import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import io.github.zyrouge.symphony.ui.theme.ThemeColors
 import io.github.zyrouge.symphony.ui.view.AlbumViewRoute
@@ -140,7 +141,7 @@ private fun SongCardsRail(context: ViewContext, songIds: List<String>, ranked: B
                             context.haptic(Haptic.LongPress)
                             showOptionsMenu = true
                         },
-                        onClick = { context.symphony.radio.shorty.playQueue(songId) },
+                        onClick = { context.playSong(songId) },
                     )
             ) {
                 Box {
@@ -224,7 +225,7 @@ private fun SongRows(context: ViewContext, songIds: List<String>) {
                                 context.haptic(Haptic.LongPress)
                                 showOptionsMenu = true
                             },
-                            onClick = { context.symphony.radio.shorty.playQueue(songId) },
+                            onClick = { context.playSong(songId) },
                         ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

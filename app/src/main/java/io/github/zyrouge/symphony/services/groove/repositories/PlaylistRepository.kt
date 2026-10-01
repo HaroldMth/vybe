@@ -95,6 +95,13 @@ class PlaylistRepository(private val symphony: Symphony) {
         } catch (err: Exception) {
             Logger.error("PlaylistRepository", "fetch failed", err)
         }
+        // The favorites playlist is synthetic: nothing ever persists it until
+        // the user first favorites a song. Without this, `getFavorites()`
+        // returns a throwaway Playlist and `update(FAVORITE_PLAYLIST, ...)`
+        // bails at `get(id) ?: return`, so the like button silently no-ops.
+        if (!cache.containsKey(FAVORITE_PLAYLIST)) {
+            add(getFavorites())
+        }
         _favorites.update {
             getFavorites().getSongIds(symphony)
         }

@@ -74,6 +74,8 @@ class Symphony(application: Application) : AndroidViewModel(application), Sympho
     }
 
     override fun onSymphonyReady() {
+        // Record which release we're running so later releases can compare against it.
+        AppMeta.recordRelease(settings)
         checkVersion()
         viewModelScope.launch {
             translator.onChange { nTranslation ->

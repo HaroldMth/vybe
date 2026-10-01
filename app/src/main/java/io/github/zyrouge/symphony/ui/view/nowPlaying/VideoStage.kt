@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import io.github.zyrouge.symphony.services.video.VideoMode
 import io.github.zyrouge.symphony.ui.components.DownloadIconButton
+import io.github.zyrouge.symphony.ui.components.VideoDownloadButton
 import io.github.zyrouge.symphony.ui.helpers.FadeTransition
 import io.github.zyrouge.symphony.ui.helpers.Haptic
 import io.github.zyrouge.symphony.ui.helpers.ScreenOrientation
@@ -172,7 +173,11 @@ private fun NowPlayingMorphLayout(
         val stage = measurables[1].measure(Constraints.fixed(w, stageHeight))
 
         val panelTop = infoY + info.height
-        val panelHeight = (h - panelTop).coerceAtLeast(0)
+        // Measure the panel at its final (video-mode) height, not the animated one. It
+        // holds a lyrics/queue LazyColumn, and tying its height to the morphing info block
+        // remeasured and re-laid out that list on every frame of the morph. Only its
+        // placement and alpha change now, so there is nothing to re-measure.
+        val panelHeight = (h - (insetTop + videoHeight + info.height)).coerceAtLeast(0)
         val panel = measurables[3].measure(Constraints.fixed(w, panelHeight))
 
         layout(w, h) {
@@ -312,7 +317,9 @@ internal fun VideoTitleActions(
                 tint = if (isFavorite) MaterialTheme.colorScheme.primary else Color.White,
             )
         }
-        DownloadIconButton(context, data.song, tint = Color.White)
+        // In video mode the download button asks audio vs video (each has its own state);
+        // audio-only screens keep using the plain DownloadIconButton.
+        VideoDownloadButton(context, data.song, tint = Color.White)
         IconButton(
             onClick = { states.showExtraOptions.value = !states.showExtraOptions.value },
         ) {
