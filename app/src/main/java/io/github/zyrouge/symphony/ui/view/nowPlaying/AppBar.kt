@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import io.github.zyrouge.symphony.services.video.VideoMode
+import io.github.zyrouge.symphony.services.video.VideoText
 import io.github.zyrouge.symphony.ui.components.DownloadIconButton
 import io.github.zyrouge.symphony.ui.helpers.ViewContext
 import io.github.zyrouge.symphony.ui.view.NowPlayingData
@@ -102,7 +103,7 @@ fun NowPlayingAppBar(context: ViewContext, data: NowPlayingData, states: NowPlay
             YouTubeToggleIcon(
                 active = videoState.engaged,
                 loading = videoState.phase == VideoMode.Phase.Loading,
-                description = context.symphony.t.VideoMode,
+                description = VideoText.VIDEO_MODE,
             )
         }
 

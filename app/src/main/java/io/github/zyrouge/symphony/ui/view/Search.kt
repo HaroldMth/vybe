@@ -1,5 +1,6 @@
 package io.github.zyrouge.symphony.ui.view
 
+import io.github.zyrouge.symphony.services.video.VideoText
 import io.github.zyrouge.symphony.ui.helpers.navigateSafe
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -308,7 +309,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                     FilterChip(
                         selected = isVideoChipSelected,
                         label = {
-                            Text(context.symphony.t.Videos)
+                            Text(VideoText.VIDEOS)
                         },
                         onClick = {
                             isVideoChipSelected = true
@@ -538,7 +539,7 @@ fun SearchView(context: ViewContext, route: SearchViewRoute) {
                                         }
                                     }
                                     if (hasVideos) {
-                                        SideHeading(context.symphony.t.Videos)
+                                        SideHeading(VideoText.VIDEOS)
                                         videoItems.forEach { video ->
                                             GenericGrooveCard(
                                                 image = video.thumbnail?.let { url ->

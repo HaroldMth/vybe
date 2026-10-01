@@ -68,6 +68,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import io.github.zyrouge.symphony.R
 import io.github.zyrouge.symphony.services.video.VideoMode
+import io.github.zyrouge.symphony.services.video.VideoText
 import io.github.zyrouge.symphony.ui.components.KeepScreenAwake
 import io.github.zyrouge.symphony.ui.components.PulsingBarsLoader
 import io.github.zyrouge.symphony.ui.components.swipeable
@@ -263,7 +264,7 @@ fun VideoCard(
                         PulsingBarsLoader()
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            context.symphony.t.LoadingVideo,
+                            VideoText.LOADING,
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = Color.White.copy(alpha = 0.8f),
                             ),
@@ -290,8 +291,8 @@ fun VideoCard(
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             when (state.message) {
-                                VideoMode.MESSAGE_NOT_FOUND -> context.symphony.t.VideoNotFound
-                                else -> context.symphony.t.VideoPlaybackFailed
+                                VideoMode.MESSAGE_NOT_FOUND -> VideoText.NOT_FOUND
+                                else -> VideoText.PLAYBACK_FAILED
                             },
                             style = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
                         )
@@ -300,7 +301,7 @@ fun VideoCard(
                             context.haptic(Haptic.Toggle)
                             videoMode.retry()
                         }) {
-                            Text(context.symphony.t.TryAgain)
+                            Text(VideoText.TRY_AGAIN)
                         }
                     }
                 }
@@ -428,7 +429,7 @@ fun VideoCard(
                     color = Color.Black.copy(alpha = 0.55f),
                 ) {
                     Text(
-                        text = if (fill) context.symphony.t.FitFrame else context.symphony.t.FillFrame,
+                        text = if (fill) VideoText.FIT else VideoText.FILL,
                         style = MaterialTheme.typography.labelMedium.copy(color = Color.White),
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     )
